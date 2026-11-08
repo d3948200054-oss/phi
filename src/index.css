@@ -1,0 +1,44 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-feature-settings: "cv02", "cv03", "cv04", "cv11";
+    background-color: #f5f6fa;
+  }
+
+  /* Dense tabular numbers everywhere */
+  .tabular-nums {
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Phone-app feel: no tap highlight flicker */
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  /* Prevents iOS zoom on form inputs */
+  input, select, textarea {
+    font-size: 16px !important;
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  *, ::before, ::after {
+    animation-delay: -1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    background-attachment: initial !important;
+    scroll-behavior: auto !important;
+    transition-duration: 0s !important;
+    transition-delay: 0s !important;
+  }
+}
+
+/* Mobile bottom-nav safe area */
+.pb-safe {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
