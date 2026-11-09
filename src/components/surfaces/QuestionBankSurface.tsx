@@ -9,9 +9,10 @@ import { QuestionDraft } from '../../types';
 import { runQuestionChecks } from '../../utils/questionChecks';
 import { renderTechnicalDiagram } from '../../utils/diagrams';
 import { Search, Trash2, Edit3, Save, CheckCircle, HelpCircle, Copy } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const QuestionBankSurface: React.FC = () => {
-  const { questions, updateQuestion, deleteQuestion, addQuestions } = useTeachDeskStore();
+  const { questions, updateQuestion, deleteQuestion, addQuestions, setActiveTab } = useTeachDeskStore();
 
   const [searchStem, setSearchStem] = useState('');
   const [subjectFilter, setSubjectFilter] = useState('all');
@@ -88,7 +89,23 @@ export const QuestionBankSurface: React.FC = () => {
         </p>
       </div>
 
-      {/* Filter Toolbar */}
+      {questions.length === 0 ? (
+        <SurfaceBeginnerGuide
+          title="Your Question Bank is Fresh & Blank"
+          subtitle="Build your coaching's question repository for JEE Advanced, NEET, and Foundation examinations."
+          steps={[
+            'Navigate to the Exam Builder surface.',
+            'Choose from 5 input methods: Paste Text, Upload PDF Paper, Photo OCR, Algorithmic Generator, or Manual Entry.',
+            'Extracted questions are checked for syllabus alignment, then stored here for creating test series.'
+          ]}
+          tip="You can use the Algorithmic Generator in Exam Builder to quickly generate 5 randomized physics or maths questions in seconds."
+          primaryActionLabel="Open Exam Builder to Add Questions"
+          onPrimaryAction={() => setActiveTab('exam-builder')}
+          icon={<HelpCircle size={28} />}
+        />
+      ) : (
+        <>
+          {/* Filter Toolbar */}
       <div className="p-3.5 bg-surface dark:bg-surface-dark border border-border dark:border-border-dark rounded-lg flex flex-col md:flex-row gap-3 items-center">
         <div className="relative flex-1 w-full">
           <Search size={14} className="absolute left-3 top-2.5 text-content-secondary" />
@@ -351,6 +368,8 @@ export const QuestionBankSurface: React.FC = () => {
           </div>
         )}
       </div>
+      </>
+      )}
     </div>
   );
 };

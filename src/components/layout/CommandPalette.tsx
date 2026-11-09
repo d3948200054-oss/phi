@@ -12,7 +12,8 @@ export const CommandPalette: React.FC = () => {
     students,
     tests,
     lectures,
-    role
+    role,
+    setIsMasterAdminModalOpen
   } = useTeachDeskStore();
 
   const [query, setQuery] = useState('');
@@ -111,6 +112,26 @@ export const CommandPalette: React.FC = () => {
                 </div>
                 <ArrowRight size={13} className="text-content-secondary" />
               </button>
+
+              {/* Secret Master Admin Console trigger */}
+              {(query.toLowerCase().includes('admin') ||
+                query.toLowerCase().includes('master') ||
+                query.toLowerCase().includes('secret') ||
+                query.toLowerCase().includes('omshankar')) && (
+                <button
+                  onClick={() => {
+                    setIsCommandOpen(false);
+                    setIsMasterAdminModalOpen(true);
+                  }}
+                  className="w-full flex items-center justify-between px-3 py-2 text-xs rounded-md bg-amber-500/10 border border-amber-500/30 text-amber-300 text-left transition-colors font-mono"
+                >
+                  <div className="flex items-center gap-2">
+                    <Shield size={15} className="text-amber-400" />
+                    <span className="font-semibold">Phi Master Security Terminal (Owner Access)</span>
+                  </div>
+                  <span className="text-[10px] uppercase font-bold text-amber-400">Unlock Gate</span>
+                </button>
+              )}
 
               {role === 'admin' && (
                 <button

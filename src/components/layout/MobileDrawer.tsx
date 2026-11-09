@@ -31,7 +31,16 @@ interface MobileDrawerProps {
 }
 
 export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) => {
-  const { activeTab, setActiveTab, role, institute, account, signOut } = useTeachDeskStore();
+  const {
+    activeTab,
+    setActiveTab,
+    role,
+    institute,
+    account,
+    signOut,
+    isMasterAdminUnlocked,
+    appFeatures
+  } = useTeachDeskStore();
 
   // Prevent body scroll when drawer is open
   useEffect(() => {
@@ -78,6 +87,24 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
   ] as const;
 
   const currentRole = role || 'teacher';
+
+  const isFeatureEnabled = (tabId: TabId) => {
+    if (currentRole === 'admin') return true;
+    switch (tabId) {
+      case 'lectures': return appFeatures?.lectureStudio ?? true;
+      case 'exam-builder': return appFeatures?.examBuilder ?? true;
+      case 'test-series': return appFeatures?.testSeries ?? true;
+      case 'question-bank': return appFeatures?.aiQuestionGenerator ?? true;
+      case 'review-desk': return appFeatures?.aiQuestionGenerator ?? true;
+      case 'daily-warmup': return appFeatures?.dailyWarmup ?? true;
+      case 'library': return appFeatures?.libraryNotes ?? true;
+      case 'proctoring': return appFeatures?.proctoringEngine ?? true;
+      case 'screen-time': return appFeatures?.screenTime ?? true;
+      case 'doubt-desk': return appFeatures?.doubtDesk ?? true;
+      case 'mentoring': return appFeatures?.mentoringSlots ?? true;
+      default: return true;
+    }
+  };
 
   const handleTabSelect = (id: TabId) => {
     setActiveTab(id);
@@ -151,8 +178,10 @@ export const MobileDrawer: React.FC<MobileDrawerProps> = ({ isOpen, onClose }) =
         {/* Scrollable Nav Items */}
         <div className="flex-1 overflow-y-auto px-4 py-3 space-y-5 pb-6">
           {sections.map((sec) => {
+            if (sec.key === 'admin' && !isMasterAdminUnlocked) return null;
+
             const sectionTabs = TABS.filter(
-              (t) => t.section === sec.key && canAccess(t.id, currentRole)
+              (t) => t.section === sec.key && canAccess(t.id, currentRole) && isFeatureEnabled(t.id)
             );
             if (sectionTabs.length === 0) return null;
 

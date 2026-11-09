@@ -16,6 +16,7 @@ import {
   Video
 } from 'lucide-react';
 import { Payment, Attempt } from '../../types';
+import { BeginnerGuideLaunchpad } from '../primitives/BeginnerGuide';
 
 export const DashboardSurface: React.FC = () => {
   const {
@@ -135,8 +136,22 @@ export const DashboardSurface: React.FC = () => {
     }
   ];
 
+  const completedSteps = {
+    batches: cohorts.length > 0,
+    students: students.length > 0,
+    exams: questions.length > 0 || tests.length > 0,
+    lectures: lectures.length > 0,
+    fees: payments.length > 0
+  };
+
   return (
     <div className="space-y-6 animate-fade-in">
+      {/* Beginner Coaching Guided Launchpad */}
+      <BeginnerGuideLaunchpad
+        completedSteps={completedSteps}
+        onNavigate={setActiveTab}
+      />
+
       {/* Dense Metric Grid - 12 columns */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
         <div className="bg-surface dark:bg-surface-dark border border-border dark:border-border-dark rounded-lg p-3.5 flex flex-col justify-between">

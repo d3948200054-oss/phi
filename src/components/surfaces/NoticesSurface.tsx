@@ -8,6 +8,7 @@ import { Select } from '../primitives/Select';
 import { Modal } from '../primitives/Modal';
 import { Notice } from '../../types';
 import { Bell, Plus, AlertCircle, Calendar } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const NoticesSurface: React.FC = () => {
   const { notices, addNotice, cohorts, account } = useTeachDeskStore();
@@ -63,23 +64,40 @@ export const NoticesSurface: React.FC = () => {
       </div>
 
       <div className="space-y-4">
-        {notices.map(notice => (
-          <Panel
-            key={notice.id}
-            title={
-              <div className="flex items-center gap-2">
-                <span>{notice.title}</span>
-                {notice.priority === 'urgent' && <Badge variant="rose">URGENT</Badge>}
-              </div>
-            }
-            subtitle={`Posted by ${notice.createdByName} · Audience: ${notice.audience.replace(/_/g, ' ')}`}
-            badge={<Badge variant="indigo">{new Date(notice.createdAt).toLocaleDateString()}</Badge>}
-          >
-            <p className="text-xs text-content-primary dark:text-content-primary-dark leading-relaxed whitespace-pre-wrap">
-              {notice.body}
-            </p>
-          </Panel>
-        ))}
+        {notices.length === 0 ? (
+          <SurfaceBeginnerGuide
+            title="Coaching Notice Board & Circulars"
+            subtitle="Broadcast official timetable announcements, exam schedules, and holiday circulars to your students and faculty."
+            steps={[
+              'Click "Compose Notice" to write an announcement.',
+              'Select Target Audience (All Batches, Specific Batch, or Faculty).',
+              'Set priority: Urgent notices display a high-visibility badge in the top bar.',
+              'Broadcast instantly across the coaching portal.'
+            ]}
+            tip="Marking crucial mock test reminders as 'Urgent' alerts students immediately across desktop and mobile views."
+            primaryActionLabel="+ Compose First Notice"
+            onPrimaryAction={() => setIsComposeModalOpen(true)}
+            icon={<Bell size={28} />}
+          />
+        ) : (
+          notices.map(notice => (
+            <Panel
+              key={notice.id}
+              title={
+                <div className="flex items-center gap-2">
+                  <span>{notice.title}</span>
+                  {notice.priority === 'urgent' && <Badge variant="rose">URGENT</Badge>}
+                </div>
+              }
+              subtitle={`Posted by ${notice.createdByName} · Audience: ${notice.audience.replace(/_/g, ' ')}`}
+              badge={<Badge variant="indigo">{new Date(notice.createdAt).toLocaleDateString()}</Badge>}
+            >
+              <p className="text-xs text-content-primary dark:text-content-primary-dark leading-relaxed whitespace-pre-wrap">
+                {notice.body}
+              </p>
+            </Panel>
+          ))
+        )}
       </div>
 
       {/* Compose Notice Modal */}

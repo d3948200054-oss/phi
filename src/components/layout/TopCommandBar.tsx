@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import {
   Search,
   Sun,
@@ -7,6 +7,8 @@ import {
   Building2,
   Sliders,
   Bell,
+  Shield,
+  Lock
 } from 'lucide-react';
 import { useTeachDeskStore } from '../../hooks/useTeachDeskStore';
 import { Badge } from '../primitives/Badge';
@@ -22,11 +24,24 @@ export const TopCommandBar: React.FC = () => {
     isDark,
     toggleTheme,
     setIsCommandOpen,
-    notices
+    notices,
+    personalMessages,
+    markPersonalMessageRead,
+    isMasterAdminUnlocked,
+    lockMasterAdmin,
+    setIsMasterAdminModalOpen
   } = useTeachDeskStore();
 
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
+  const [isPersonalMsgOpen, setIsPersonalMsgOpen] = useState(false);
   const currentTabConfig = TABS.find((t) => t.id === activeTab);
+
+  const myPersonalMessages = personalMessages ? personalMessages.filter(m => m.recipientId === account?.id) : [];
+  const unreadPersonal = myPersonalMessages.filter(m => !m.isRead);
+
+  const handleLogoClick = () => {
+    setIsMasterAdminModalOpen(true);
+  };
 
   const urgentNotices = notices.filter(n => n.priority === 'urgent');
 
@@ -35,11 +50,16 @@ export const TopCommandBar: React.FC = () => {
       <header className="h-14 bg-[#1a2744] dark:bg-[#0f1a35] border-b border-[#0f1a35] px-4 flex items-center justify-between gap-4 z-10 shrink-0">
         {/* Left: Logo + Screen Title */}
         <div className="flex items-center gap-3 min-w-0">
-          {/* Logo mark - shown on mobile when sidebar is hidden */}
+          {/* Logo mark - shown on mobile when sidebar is hidden (with secret 5-click easter egg) */}
           <div className="flex md:hidden items-center gap-2">
-            <div className="w-7 h-7 rounded bg-[#f59e0b] flex items-center justify-center text-[#1a2744] font-serif font-bold text-base shrink-0">
+            <button
+              onClick={handleLogoClick}
+              type="button"
+              className="w-7 h-7 rounded bg-[#f59e0b] flex items-center justify-center text-[#1a2744] font-serif font-bold text-base shrink-0 active:scale-95 transition-transform"
+              title="Phi Coaching"
+            >
               φ
-            </div>
+            </button>
           </div>
           <div className="flex flex-col min-w-0">
             <span className="font-semibold text-sm text-white truncate">
@@ -76,13 +96,34 @@ export const TopCommandBar: React.FC = () => {
 
         {/* Right: Actions */}
         <div className="flex items-center gap-2">
-          {/* Notification bell for mobile */}
-          {urgentNotices.length > 0 && (
-            <div className="relative md:hidden">
-              <Bell size={20} className="text-white/70" />
-              <span className="absolute -top-1 -right-1 w-4 h-4 bg-[#f59e0b] rounded-full text-[9px] text-[#1a2744] font-bold flex items-center justify-center">
-                {urgentNotices.length}
-              </span>
+          {/* Personal Messages from Admin */}
+          {myPersonalMessages.length > 0 && (
+            <button
+              onClick={() => setIsPersonalMsgOpen(!isPersonalMsgOpen)}
+              title="Personal Messages from Om Shankar"
+              className="relative p-1.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/40 text-amber-300 transition-colors flex items-center gap-1 text-xs"
+            >
+              <Bell size={16} className={unreadPersonal.length > 0 ? 'text-amber-400 animate-bounce' : 'text-amber-300'} />
+              {unreadPersonal.length > 0 && (
+                <span className="font-mono font-bold text-[10px] bg-red-600 text-white px-1.5 py-0.2 rounded-full">
+                  {unreadPersonal.length}
+                </span>
+              )}
+            </button>
+          )}
+
+          {/* Master Admin Indicator if unlocked */}
+          {isMasterAdminUnlocked && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-500/20 border border-amber-500/40 text-amber-300 text-xs font-mono font-semibold animate-pulse">
+              <Shield size={13} className="text-amber-400" />
+              <span className="hidden sm:inline">Owner Admin Active</span>
+              <button
+                onClick={lockMasterAdmin}
+                className="ml-1 px-1.5 py-0.5 rounded bg-amber-500/30 hover:bg-amber-500/50 text-[10px] text-amber-200 transition-colors"
+                title="Lock and hide Master Admin Console"
+              >
+                Lock
+              </button>
             </div>
           )}
 
@@ -141,6 +182,72 @@ export const TopCommandBar: React.FC = () => {
       </header>
 
       <AISettingsModal isOpen={isAiModalOpen} onClose={() => setIsAiModalOpen(false)} />
+
+      {/* Personal Direct Messages Dialog */}
+      {isPersonalMsgOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in">
+          <div className="max-w-md w-full bg-[#11192e] border border-amber-500/40 rounded-2xl p-5 space-y-4 text-white">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+              <div className="flex items-center gap-2">
+                <span className="w-8 h-8 rounded-lg bg-amber-500/20 text-amber-400 flex items-center justify-center">
+                  👑
+                </span>
+                <div>
+                  <h4 className="font-bold text-sm text-white">Personal Messages from Admin</h4>
+                  <p className="text-[10px] text-slate-400">Direct directives from Om Shankar</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setIsPersonalMsgOpen(false)}
+                className="text-slate-400 hover:text-white"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 max-h-72 overflow-y-auto pr-1">
+              {myPersonalMessages.length === 0 ? (
+                <p className="text-xs text-slate-400 py-4 text-center">No messages.</p>
+              ) : (
+                myPersonalMessages.map(msg => (
+                  <div
+                    key={msg.id}
+                    className={`p-3 rounded-xl border space-y-1.5 transition-colors ${
+                      !msg.isRead ? 'bg-amber-950/30 border-amber-500/40' : 'bg-slate-900/60 border-slate-800'
+                    }`}
+                  >
+                    <div className="flex items-center justify-between">
+                      <strong className="text-xs text-amber-300">{msg.subject}</strong>
+                      <span className="text-[10px] text-slate-500 font-mono">
+                        {new Date(msg.sentAt).toLocaleDateString()}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-300 whitespace-pre-wrap">{msg.message}</p>
+                    {!msg.isRead && (
+                      <div className="pt-1 text-right">
+                        <button
+                          type="button"
+                          onClick={() => markPersonalMessageRead(msg.id)}
+                          className="text-[10px] text-emerald-400 hover:underline font-mono"
+                        >
+                          Mark as read ✓
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ))
+              )}
+            </div>
+
+            <button
+              onClick={() => setIsPersonalMsgOpen(false)}
+              className="w-full py-2 bg-slate-800 hover:bg-slate-700 text-xs font-semibold rounded-lg text-slate-300"
+            >
+              Close
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 };

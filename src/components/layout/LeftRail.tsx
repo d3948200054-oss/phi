@@ -31,7 +31,19 @@ interface LeftRailProps {
 }
 
 export const LeftRail: React.FC<LeftRailProps> = ({ collapsed, onToggleCollapse }) => {
-  const { activeTab, setActiveTab, role, institute } = useTeachDeskStore();
+  const {
+    activeTab,
+    setActiveTab,
+    role,
+    institute,
+    isMasterAdminUnlocked,
+    setIsMasterAdminModalOpen,
+    appFeatures
+  } = useTeachDeskStore();
+
+  const handleLogoClick = () => {
+    setIsMasterAdminModalOpen(true);
+  };
 
   const getTabIcon = (id: TabId) => {
     const props = { size: 17, className: 'shrink-0 stroke-[1.75]' };
@@ -69,6 +81,24 @@ export const LeftRail: React.FC<LeftRailProps> = ({ collapsed, onToggleCollapse 
 
   const currentRole = role || 'teacher';
 
+  const isFeatureEnabled = (tabId: TabId) => {
+    if (currentRole === 'admin') return true; // admin can always see all surfaces
+    switch (tabId) {
+      case 'lectures': return appFeatures?.lectureStudio ?? true;
+      case 'exam-builder': return appFeatures?.examBuilder ?? true;
+      case 'test-series': return appFeatures?.testSeries ?? true;
+      case 'question-bank': return appFeatures?.aiQuestionGenerator ?? true;
+      case 'review-desk': return appFeatures?.aiQuestionGenerator ?? true;
+      case 'daily-warmup': return appFeatures?.dailyWarmup ?? true;
+      case 'library': return appFeatures?.libraryNotes ?? true;
+      case 'proctoring': return appFeatures?.proctoringEngine ?? true;
+      case 'screen-time': return appFeatures?.screenTime ?? true;
+      case 'doubt-desk': return appFeatures?.doubtDesk ?? true;
+      case 'mentoring': return appFeatures?.mentoringSlots ?? true;
+      default: return true;
+    }
+  };
+
   return (
     <aside
       className={`relative flex-col h-screen bg-surface dark:bg-surface-dark border-r border-border dark:border-border-dark transition-all duration-200 select-none z-20 shrink-0 hidden md:flex ${
@@ -79,9 +109,14 @@ export const LeftRail: React.FC<LeftRailProps> = ({ collapsed, onToggleCollapse 
       <div className="h-14 border-b border-border dark:border-border-dark flex items-center justify-between px-3.5 bg-surface dark:bg-surface-dark">
         {!collapsed && (
           <div className="flex items-center gap-2.5 overflow-hidden">
-            <div className="w-7 h-7 rounded bg-[#1a2744] flex items-center justify-center text-white shrink-0 font-serif font-bold text-base tracking-tighter shadow-xs">
+            <button
+              onClick={handleLogoClick}
+              type="button"
+              className="w-7 h-7 rounded bg-[#1a2744] flex items-center justify-center text-white shrink-0 font-serif font-bold text-base tracking-tighter shadow-xs hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+              title="Phi Coaching"
+            >
               φ
-            </div>
+            </button>
             <div className="truncate">
               <span className="font-serif font-bold text-base tracking-tight text-content-primary dark:text-content-primary-dark">
                 phi coaching
@@ -93,17 +128,24 @@ export const LeftRail: React.FC<LeftRailProps> = ({ collapsed, onToggleCollapse 
           </div>
         )}
         {collapsed && (
-          <div className="mx-auto w-7 h-7 rounded bg-[#1a2744] flex items-center justify-center text-white font-serif font-bold text-base">
+          <button
+            onClick={handleLogoClick}
+            type="button"
+            className="mx-auto w-7 h-7 rounded bg-[#1a2744] flex items-center justify-center text-white font-serif font-bold text-base hover:scale-105 active:scale-95 transition-transform cursor-pointer"
+            title="Phi Coaching"
+          >
             φ
-          </div>
+          </button>
         )}
       </div>
 
       {/* Navigation Links */}
       <div className="flex-1 overflow-y-auto py-3 px-2 space-y-4">
         {sections.map((sec) => {
+          if (sec.key === 'admin' && !isMasterAdminUnlocked) return null;
+
           const sectionTabs = TABS.filter(
-            (t) => t.section === sec.key && canAccess(t.id, currentRole)
+            (t) => t.section === sec.key && canAccess(t.id, currentRole) && isFeatureEnabled(t.id)
           );
           if (sectionTabs.length === 0) return null;
 

@@ -1,4 +1,6 @@
-export type UserRole = 'teacher' | 'admin';
+export type UserRole = 'teacher' | 'admin' | 'student';
+
+export type PreviewMode = 'admin' | 'student' | 'teacher';
 
 export interface PayoutDetails {
   upiId: string;
@@ -15,6 +17,8 @@ export interface Account {
   role: UserRole;
   name: string;
   email: string;
+  collegeEmail?: string;
+  linkedinUrl?: string;
   avatar?: string;
   passwordHash?: string; // used for PBKDF2 verification metadata
   vaultSalt?: string;    // hex
@@ -27,6 +31,8 @@ export interface Account {
   yearsExperience: number;
   instituteId: string;
   createdAt: string;
+  status?: 'active' | 'pending' | 'terminated';
+  rawPasswordForDev?: string;
   payout?: PayoutDetails;
   signingPublicKey?: JsonWebKey; // published public key
 }
@@ -68,6 +74,9 @@ export interface Student {
   name: string;
   rollNo: string;
   phone: string;
+  email?: string;
+  schoolName?: string;
+  studentClass?: string;
   parentPhone: string;
   course: string;
   cohortId: string;
@@ -76,6 +85,87 @@ export interface Student {
   paymentStatus: 'pending' | 'submitted' | 'verified' | 'overdue';
   flags: StudentFlag[];
   academicTags: string[];
+  isTerminated?: boolean;
+}
+
+export interface TeacherRequest {
+  id: string;
+  name: string;
+  phone: string;
+  email: string;
+  subject: string;
+  course?: string;
+  qualification: string;
+  yearsExperience: number;
+  password?: string;
+  vaultSalt?: string;
+  vaultIv?: string;
+  vaultCiphertext?: string;
+  signingPublicKey?: JsonWebKey;
+  status: 'pending' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  requestedAt: string;
+  decidedAt?: string;
+}
+
+export interface AIVerificationResult {
+  isVerified: boolean;
+  confidence: number;
+  detectedAmount?: number;
+  detectedUpi?: string;
+  detectedUtr?: string;
+  duplicateWarning?: boolean;
+  remarks: string;
+}
+
+export interface StudentLead {
+  id: string;
+  name: string;
+  email: string;
+  phone: string;
+  schoolName: string;
+  studentClass: string;
+  cohortId: string;
+  cohortName: string;
+  course: string;
+  feeAmount: number;
+  status: 'unpaid_lead' | 'payment_submitted' | 'enrolled_verified' | 'abandoned';
+  createdAt: string;
+  lastStep: 'registration_filled' | 'payment_viewed' | 'screenshot_uploaded';
+  paymentProofUrl?: string;
+  screenshotHash?: string;
+  utr?: string;
+  aiVerification?: AIVerificationResult;
+  notes?: string;
+}
+
+export interface PersonalMessage {
+  id: string;
+  senderName: string;
+  senderRole: 'admin';
+  recipientId: string;
+  recipientName: string;
+  recipientRole: 'teacher' | 'student';
+  subject: string;
+  message: string;
+  sentAt: string;
+  isRead: boolean;
+  priority: 'normal' | 'urgent';
+}
+
+export interface AppFeatures {
+  aiQuestionGenerator: boolean;
+  lectureStudio: boolean;
+  proctoringEngine: boolean;
+  screenTime: boolean;
+  doubtDesk: boolean;
+  libraryNotes: boolean;
+  dailyWarmup: boolean;
+  mentoringSlots: boolean;
+  testSeries: boolean;
+  examBuilder: boolean;
+  studentRegistrationPortal: boolean;
+  onlineFeePayment: boolean;
 }
 
 export interface LectureChapter {

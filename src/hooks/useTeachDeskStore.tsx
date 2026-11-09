@@ -20,8 +20,14 @@ import {
   Student,
   TabId,
   Test,
-  UserRole
+  UserRole,
+  PreviewMode,
+  TeacherRequest,
+  StudentLead,
+  AppFeatures,
+  PersonalMessage
 } from '../types';
+import { runAIPaymentVerification } from '../utils/paymentVerification';
 import {
   SEED_ACCOUNTS,
   SEED_COHORTS,
@@ -36,6 +42,7 @@ import {
 import { clearSession, retrieveSession, storeSession } from '../utils/sessionVault';
 import { loadFromDeviceLedger, saveToDeviceLedger } from '../utils/storageLedger';
 import { canAccess } from '../utils/accessControl';
+import { MASTER_ADMIN_ACCOUNT, verifyMasterAdminCredentials, logSecurityAudit } from '../utils/adminAuth';
 
 export interface ToastMessage {
   id: string;
@@ -151,6 +158,71 @@ interface TeachDeskContextType {
   aiSettings: AISettings;
   updateAiSettings: (settings: AISettings) => void;
 
+  // Master Admin & Secret Access (Om Shankar)
+  isMasterAdminUnlocked: boolean;
+  unlockMasterAdmin: (password: string, pin: string) => Promise<{ success: boolean; error?: string }>;
+  lockMasterAdmin: () => void;
+  isMasterAdminModalOpen: boolean;
+  setIsMasterAdminModalOpen: (open: boolean) => void;
+  previewMode: PreviewMode;
+  setPreviewMode: (mode: PreviewMode) => void;
+
+  // Coaching Reset & Demo Data
+  resetToFreshBlankState: () => Promise<void>;
+  loadDemoPracticeData: () => Promise<void>;
+
+  // Direct Student Enrollment
+  enrollStudentDirect: (studentData: {
+    name: string;
+    rollNo: string;
+    phone: string;
+    parentPhone: string;
+    course: string;
+    cohortId: string;
+    feePlanId?: string;
+  }) => Promise<Student>;
+
+  // Teacher Requests & Admin Approval Flow
+  teacherRequests: TeacherRequest[];
+  requestTeacherAccount: (request: Omit<TeacherRequest, 'id' | 'status' | 'requestedAt'>) => Promise<{ success: boolean; message: string }>;
+  approveTeacherRequest: (requestId: string) => Promise<void>;
+  rejectTeacherRequest: (requestId: string, reason?: string) => Promise<void>;
+
+  // User Termination & Control
+  terminateUser: (userId: string, role: 'teacher' | 'student') => Promise<void>;
+  reactivateUser: (userId: string, role: 'teacher' | 'student') => Promise<void>;
+
+  // Personal Direct Messaging
+  personalMessages: PersonalMessage[];
+  sendPersonalMessage: (msg: Omit<PersonalMessage, 'id' | 'senderName' | 'senderRole' | 'sentAt' | 'isRead'>) => Promise<void>;
+  markPersonalMessageRead: (id: string) => void;
+
+  // Feature Toggles (Turn on/off any feature)
+  appFeatures: AppFeatures;
+  toggleAppFeature: (feature: keyof AppFeatures) => void;
+
+  // Student Leads (Registered but not paid drop-offs)
+  studentLeads: StudentLead[];
+  createStudentLead: (lead: Omit<StudentLead, 'id' | 'status' | 'createdAt' | 'lastStep'>) => Promise<StudentLead>;
+  updateStudentLead: (leadId: string, updates: Partial<StudentLead>) => Promise<void>;
+
+  // Duplicate Proof Shield & AI Payment Verification
+  usedScreenshotHashes: string[];
+  verifyAndProcessStudentPayment: (params: {
+    leadId: string;
+    screenshotBase64: string;
+    utr: string;
+    payerName: string;
+    payerPhone: string;
+    payerEmail?: string;
+    schoolName?: string;
+    studentClass?: string;
+    amount: number;
+    feePlanId: string;
+    cohortId: string;
+    course: string;
+  }) => Promise<{ success: boolean; error?: string; student?: Student; isDuplicate?: boolean; remarks?: string }>;
+
   // Toasts
   toasts: ToastMessage[];
   addToast: (msg: Omit<ToastMessage, 'id'>) => void;
@@ -190,25 +262,58 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   const [account, setAccount] = useState<Account | null>(null);
   const [unlockedSigningKey, setUnlockedSigningKey] = useState<JsonWebKey | null>(null);
 
-  // Institute Data (Shared ledger)
+  // Institute Data (Shared ledger - starts fresh & blank for new coaching)
   const [institute, setInstitute] = useState<Institute>(SEED_INSTITUTE);
-  const [teachersList, setTeachersList] = useState<Account[]>(SEED_ACCOUNTS);
-  const [cohorts, setCohorts] = useState<Cohort[]>(SEED_COHORTS);
-  const [students, setStudents] = useState<Student[]>(SEED_STUDENTS);
-  const [feePlans, setFeePlans] = useState<FeePlan[]>(SEED_FEE_PLANS);
+  const [teachersList, setTeachersList] = useState<Account[]>([]);
+  const [cohorts, setCohorts] = useState<Cohort[]>([]);
+  const [students, setStudents] = useState<Student[]>([]);
+  const [feePlans, setFeePlans] = useState<FeePlan[]>([]);
   const [payments, setPayments] = useState<Payment[]>([]);
 
-  // Content & Sessions (Working / Local ledger)
-  const [lectures, setLectures] = useState<Lecture[]>(SEED_LECTURES);
-  const [questions, setQuestions] = useState<QuestionDraft[]>(createInitialSeedQuestions());
+  // Content & Sessions (Fresh beginner slate)
+  const [lectures, setLectures] = useState<Lecture[]>([]);
+  const [questions, setQuestions] = useState<QuestionDraft[]>([]);
   const [tests, setTests] = useState<Test[]>([]);
   const [seriesList, setSeriesList] = useState<Series[]>([]);
   const [attempts, setAttempts] = useState<Attempt[]>([]);
   const [screenTimeRecords, setScreenTimeRecords] = useState<ScreenTimeRecord[]>([]);
   const [doubts, setDoubts] = useState<DoubtQuery[]>([]);
   const [mentoringSlots, setMentoringSlots] = useState<MentoringSlot[]>([]);
-  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>(SEED_LIBRARY);
-  const [notices, setNotices] = useState<Notice[]>(SEED_NOTICES);
+  const [libraryItems, setLibraryItems] = useState<LibraryItem[]>([]);
+  const [notices, setNotices] = useState<Notice[]>([]);
+
+  // Teacher Requests & Admin Approval Flow
+  const [teacherRequests, setTeacherRequests] = useState<TeacherRequest[]>([]);
+
+  // Student Leads (Registered but not paid drop-offs)
+  const [studentLeads, setStudentLeads] = useState<StudentLead[]>([]);
+
+  // Direct Personal Messages from Admin
+  const [personalMessages, setPersonalMessages] = useState<PersonalMessage[]>([]);
+
+  // App Features Control Toggles
+  const [appFeatures, setAppFeatures] = useState<AppFeatures>({
+    aiQuestionGenerator: true,
+    lectureStudio: true,
+    proctoringEngine: true,
+    screenTime: true,
+    doubtDesk: true,
+    libraryNotes: true,
+    dailyWarmup: true,
+    mentoringSlots: true,
+    testSeries: true,
+    examBuilder: true,
+    studentRegistrationPortal: true,
+    onlineFeePayment: true,
+  });
+
+  // Used Screenshot Hashes (Strict Duplicate Shield)
+  const [usedScreenshotHashes, setUsedScreenshotHashes] = useState<string[]>([]);
+
+  // Master Admin & Secret Access (Om Shankar)
+  const [isMasterAdminUnlocked, setIsMasterAdminUnlocked] = useState<boolean>(false);
+  const [isMasterAdminModalOpen, setIsMasterAdminModalOpen] = useState<boolean>(false);
+  const [previewMode, setPreviewMode] = useState<PreviewMode>('admin');
 
   // Lab Seats
   const [seats, setSeats] = useState<SeatRecord[]>(() => {
@@ -253,12 +358,15 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       const session = await retrieveSession();
       if (session && session.account) {
         setAccount(session.account);
+        if (session.account.role === 'admin' && session.account.id === MASTER_ADMIN_ACCOUNT.id) {
+          setIsMasterAdminUnlocked(true);
+        }
         if (session.unlockedSigningPrivateJwk) {
           setUnlockedSigningKey(session.unlockedSigningPrivateJwk);
         }
       } else {
-        // Default to admin owner if no session yet, for immediate exploration
-        setAccount(SEED_ACCOUNTS[0]);
+        // App starts fresh in unauthenticated state
+        setAccount(null);
       }
 
       // 2. Load shared institute ledger from IndexedDB
@@ -280,6 +388,21 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
 
         const ledgerTeachers = await loadFromDeviceLedger<Account[]>('teachers_ledger');
         if (ledgerTeachers) setTeachersList(ledgerTeachers);
+
+        const ledgerRequests = await loadFromDeviceLedger<TeacherRequest[]>('teacher_requests_ledger');
+        if (ledgerRequests) setTeacherRequests(ledgerRequests);
+
+        const ledgerLeads = await loadFromDeviceLedger<StudentLead[]>('student_leads_ledger');
+        if (ledgerLeads) setStudentLeads(ledgerLeads);
+
+        const ledgerPersonalMsgs = await loadFromDeviceLedger<PersonalMessage[]>('personal_messages_ledger');
+        if (ledgerPersonalMsgs) setPersonalMessages(ledgerPersonalMsgs);
+
+        const ledgerFeatures = await loadFromDeviceLedger<AppFeatures>('app_features_ledger');
+        if (ledgerFeatures) setAppFeatures(ledgerFeatures);
+
+        const ledgerHashes = await loadFromDeviceLedger<string[]>('used_proof_hashes_ledger');
+        if (ledgerHashes) setUsedScreenshotHashes(ledgerHashes);
       } catch (err) {
         console.warn('Ledger load fallback to defaults', err);
       }
@@ -333,6 +456,26 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
   };
 
   const signIn = async (userAccount: Account, _password?: string, signingKey?: JsonWebKey) => {
+    // 1. Check if account is terminated
+    if (userAccount.status === 'terminated') {
+      addToast({
+        type: 'danger',
+        title: 'Account Terminated',
+        message: 'Your account access has been suspended or terminated by Coaching Administrator (Om Shankar).'
+      });
+      throw new Error('This account has been terminated by the administrator.');
+    }
+
+    // 2. Check if account is pending approval
+    if (userAccount.status === 'pending') {
+      addToast({
+        type: 'warning',
+        title: 'Approval Pending',
+        message: 'Your faculty registration request has been submitted and is currently awaiting approval by Admin (Om Shankar).'
+      });
+      throw new Error('Account pending admin approval. Please wait for Om Shankar to approve your request in the Admin Panel.');
+    }
+
     setAccount(userAccount);
     if (signingKey) {
       setUnlockedSigningKey(signingKey);
@@ -357,6 +500,7 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     clearSession();
     setAccount(null);
     setUnlockedSigningKey(null);
+    setIsMasterAdminUnlocked(false);
     setActiveTabState('dashboard');
     addToast({
       type: 'info',
@@ -365,10 +509,151 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
+  // Master Admin (Om Shankar) Unlock & Lock
+  const unlockMasterAdmin = async (password: string, pin: string) => {
+    const result = await verifyMasterAdminCredentials(password, pin);
+    if (result.success) {
+      setAccount(MASTER_ADMIN_ACCOUNT);
+      setIsMasterAdminUnlocked(true);
+      await storeSession({
+        account: MASTER_ADMIN_ACCOUNT,
+        unlockedAt: Date.now()
+      });
+      setActiveTabState('admin');
+      addToast({
+        type: 'success',
+        title: 'Master Console Unlocked',
+        message: 'Welcome Om Shankar. Master Admin Access Granted.'
+      });
+      return { success: true };
+    } else {
+      return { success: false, error: result.error };
+    }
+  };
+
+  const lockMasterAdmin = () => {
+    setIsMasterAdminUnlocked(false);
+    logSecurityAudit('SESSION_LOCKED', 'Master Console locked by owner.', 'info');
+    signOut();
+    addToast({
+      type: 'info',
+      title: 'Master Console Locked',
+      message: 'Admin access panel locked and hidden from view.'
+    });
+  };
+
+  // Reset all features to newly started clean/blank slate
+  const resetToFreshBlankState = async () => {
+    setCohorts([]);
+    setStudents([]);
+    setLectures([]);
+    setQuestions([]);
+    setTests([]);
+    setSeriesList([]);
+    setAttempts([]);
+    setScreenTimeRecords([]);
+    setDoubts([]);
+    setMentoringSlots([]);
+    setLibraryItems([]);
+    setNotices([]);
+    setFeePlans([]);
+    setPayments([]);
+
+    await saveToDeviceLedger('cohorts_ledger', []);
+    await saveToDeviceLedger('students_ledger', []);
+    await saveToDeviceLedger('fee_plans_ledger', []);
+    await saveToDeviceLedger('payments_ledger', []);
+
+    logSecurityAudit('SYSTEM_RESET', 'Owner reset all coaching data to newly started blank state.', 'warning');
+    addToast({
+      type: 'info',
+      title: 'Blank State Activated',
+      message: 'Coaching data reset to clean slate. Beginner directions ready.'
+    });
+  };
+
+  // Optional sample demo data loader for testing
+  const loadDemoPracticeData = async () => {
+    setInstitute(SEED_INSTITUTE);
+    setCohorts(SEED_COHORTS);
+    setStudents(SEED_STUDENTS);
+    setLectures(SEED_LECTURES);
+    setQuestions(createInitialSeedQuestions());
+    setLibraryItems(SEED_LIBRARY);
+    setNotices(SEED_NOTICES);
+    setFeePlans(SEED_FEE_PLANS);
+    setTeachersList(SEED_ACCOUNTS);
+
+    await saveToDeviceLedger('cohorts_ledger', SEED_COHORTS);
+    await saveToDeviceLedger('students_ledger', SEED_STUDENTS);
+    await saveToDeviceLedger('fee_plans_ledger', SEED_FEE_PLANS);
+    await saveToDeviceLedger('teachers_ledger', SEED_ACCOUNTS);
+
+    addToast({
+      type: 'success',
+      title: 'Sample Data Loaded',
+      message: 'Practice cohorts, students, and curriculum loaded for demonstration.'
+    });
+  };
+
+  // Direct student enrollment by teacher or student registration
+  const enrollStudentDirect = async (studentData: {
+    name: string;
+    rollNo: string;
+    phone: string;
+    parentPhone: string;
+    course: string;
+    cohortId: string;
+    feePlanId?: string;
+  }) => {
+    const newStudent: Student = {
+      id: 'stu_' + Math.random().toString(36).substring(2, 9),
+      name: studentData.name.trim(),
+      rollNo: studentData.rollNo.trim().toUpperCase(),
+      phone: studentData.phone.trim(),
+      parentPhone: studentData.parentPhone.trim(),
+      course: studentData.course,
+      cohortId: studentData.cohortId,
+      enrolledAt: new Date().toISOString().split('T')[0],
+      feePlanId: studentData.feePlanId,
+      paymentStatus: 'pending',
+      flags: [],
+      academicTags: ['New Admission']
+    };
+    const updated = [newStudent, ...students.filter(s => s.rollNo !== newStudent.rollNo)];
+    setStudents(updated);
+    await saveToDeviceLedger('students_ledger', updated);
+    addToast({
+      type: 'success',
+      title: 'Student Admitted',
+      message: `${newStudent.name} (Roll: ${newStudent.rollNo}) admitted into Phi Coaching.`
+    });
+    return newStudent;
+  };
+
   const registerTeacher = async (newAcc: Account, _password: string, signingKey?: JsonWebKey) => {
-    const updatedTeachers = [...teachersList, newAcc];
+    const updatedTeachers = [...teachersList.filter(t => t.id !== newAcc.id), newAcc];
     setTeachersList(updatedTeachers);
     await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+
+    // If cohorts are empty, create their starter batch so students can immediately join under this teacher
+    if (cohorts.length === 0) {
+      const initialCohort: Cohort = {
+        id: 'coh_' + Math.random().toString(36).substring(2, 9),
+        name: `${newAcc.subject} Batch Alpha (${newAcc.courses[0] || 'Main'})`,
+        code: `${newAcc.subject.slice(0, 3).toUpperCase()}-26`,
+        course: newAcc.courses[0] || 'IIT-JEE (Main & Advanced)',
+        subject: newAcc.subject,
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: '2026-05-30',
+        teacherIds: [newAcc.id],
+        createdAt: new Date().toISOString()
+      };
+      const updatedCohorts = [initialCohort];
+      setCohorts(updatedCohorts);
+      await saveToDeviceLedger('cohorts_ledger', updatedCohorts);
+    }
+
     await signIn(newAcc, _password, signingKey);
   };
 
@@ -396,6 +681,393 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       title: 'Payout Configured',
       message: `Settlement account updated for ${payout.accountName} (${payout.upiId}). Signing key preserved.`
     });
+  };
+
+  // Request Teacher Account (Awaits Admin Om Shankar approval)
+  const requestTeacherAccount = async (requestData: Omit<TeacherRequest, 'id' | 'status' | 'requestedAt'>) => {
+    const existing = teachersList.find(t => t.email.toLowerCase() === requestData.email.toLowerCase());
+    if (existing) {
+      if (existing.status === 'active') {
+        throw new Error('An active teacher account with this email already exists. Please sign in directly.');
+      } else if (existing.status === 'terminated') {
+        throw new Error('This account was previously terminated by Coaching Admin.');
+      }
+    }
+
+    const newReq: TeacherRequest = {
+      ...requestData,
+      id: 'req_' + Math.random().toString(36).substring(2, 9),
+      status: 'pending',
+      requestedAt: new Date().toISOString()
+    };
+
+    // Create pending account in teachersList so login checks work consistently
+    const pendingAccount: Account = {
+      id: 'acc_' + Math.random().toString(36).substring(2, 9),
+      role: 'teacher',
+      name: requestData.name.trim(),
+      email: requestData.email.trim(),
+      subject: requestData.subject,
+      courses: [requestData.course || 'IIT-JEE (Main & Advanced)'],
+      phone: requestData.phone.trim(),
+      qualification: requestData.qualification || 'B.Tech / M.Sc.',
+      yearsExperience: requestData.yearsExperience || 3,
+      instituteId: institute.id,
+      createdAt: new Date().toISOString(),
+      status: 'pending',
+      rawPasswordForDev: requestData.password,
+      vaultSalt: requestData.vaultSalt,
+      vaultIv: requestData.vaultIv,
+      vaultCiphertext: requestData.vaultCiphertext,
+      signingPublicKey: requestData.signingPublicKey,
+      payout: {
+        upiId: `${requestData.name.toLowerCase().replace(/\s+/g, '.')}@phi.upi`,
+        accountName: `${requestData.name} Faculty Account`
+      }
+    };
+
+    const updatedRequests = [newReq, ...teacherRequests.filter(r => r.email.toLowerCase() !== requestData.email.toLowerCase())];
+    setTeacherRequests(updatedRequests);
+    await saveToDeviceLedger('teacher_requests_ledger', updatedRequests);
+
+    const updatedTeachers = [...teachersList.filter(t => t.email.toLowerCase() !== pendingAccount.email.toLowerCase()), pendingAccount];
+    setTeachersList(updatedTeachers);
+    await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+
+    addToast({
+      type: 'info',
+      title: 'Teacher Request Submitted',
+      message: 'Your registration request has been submitted to Admin (Om Shankar). You can log in as soon as it is approved.'
+    });
+
+    return { success: true, message: 'Your request was submitted to Admin.' };
+  };
+
+  const approveTeacherRequest = async (requestId: string) => {
+    const targetReq = teacherRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+
+    const updatedRequests = teacherRequests.map(r =>
+      r.id === requestId ? { ...r, status: 'approved' as const, decidedAt: new Date().toISOString() } : r
+    );
+    setTeacherRequests(updatedRequests);
+    await saveToDeviceLedger('teacher_requests_ledger', updatedRequests);
+
+    const updatedTeachers = teachersList.map(t => {
+      if (t.email.toLowerCase() === targetReq.email.toLowerCase()) {
+        return { ...t, status: 'active' as const };
+      }
+      return t;
+    });
+    setTeachersList(updatedTeachers);
+    await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+
+    // Auto-create batch for teacher if not present
+    const approvedTeacher = updatedTeachers.find(t => t.email.toLowerCase() === targetReq.email.toLowerCase());
+    if (approvedTeacher) {
+      const hasBatch = cohorts.some(c => c.teacherIds.includes(approvedTeacher.id));
+      if (!hasBatch) {
+        const newBatch: Cohort = {
+          id: 'coh_' + Math.random().toString(36).substring(2, 9),
+          name: `${approvedTeacher.subject} Batch Alpha (${approvedTeacher.courses[0] || 'IIT-JEE'})`,
+          code: `${approvedTeacher.subject.slice(0, 3).toUpperCase()}-26`,
+          course: approvedTeacher.courses[0] || 'IIT-JEE (Main & Advanced)',
+          subject: approvedTeacher.subject,
+          startDate: new Date().toISOString().split('T')[0],
+          endDate: '2026-05-30',
+          teacherIds: [approvedTeacher.id],
+          createdAt: new Date().toISOString()
+        };
+        const updatedCohorts = [newBatch, ...cohorts];
+        setCohorts(updatedCohorts);
+        await saveToDeviceLedger('cohorts_ledger', updatedCohorts);
+      }
+    }
+
+    addToast({
+      type: 'success',
+      title: 'Faculty Approved',
+      message: `${targetReq.name} is now approved. They can now log into Phi Coaching.`
+    });
+  };
+
+  const rejectTeacherRequest = async (requestId: string, reason: string = 'Access denied by Coaching Administrator.') => {
+    const targetReq = teacherRequests.find(r => r.id === requestId);
+    if (!targetReq) return;
+
+    const updatedRequests = teacherRequests.map(r =>
+      r.id === requestId ? { ...r, status: 'rejected' as const, rejectionReason: reason, decidedAt: new Date().toISOString() } : r
+    );
+    setTeacherRequests(updatedRequests);
+    await saveToDeviceLedger('teacher_requests_ledger', updatedRequests);
+
+    const updatedTeachers = teachersList.filter(t => t.email.toLowerCase() !== targetReq.email.toLowerCase());
+    setTeachersList(updatedTeachers);
+    await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+
+    addToast({
+      type: 'info',
+      title: 'Teacher Request Rejected',
+      message: `Request for ${targetReq.name} was rejected.`
+    });
+  };
+
+  // User Termination & Control
+  const terminateUser = async (userId: string, role: 'teacher' | 'student') => {
+    if (role === 'teacher') {
+      const updatedTeachers = teachersList.map(t =>
+        t.id === userId ? { ...t, status: 'terminated' as const } : t
+      );
+      setTeachersList(updatedTeachers);
+      await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+      addToast({
+        type: 'danger',
+        title: 'Faculty Terminated',
+        message: 'Teacher account access revoked immediately.'
+      });
+    } else {
+      const updatedStudents = students.map(s =>
+        s.id === userId ? { ...s, isTerminated: true } : s
+      );
+      setStudents(updatedStudents);
+      await saveToDeviceLedger('students_ledger', updatedStudents);
+      addToast({
+        type: 'danger',
+        title: 'Student Terminated',
+        message: 'Student admission and portal access suspended.'
+      });
+    }
+  };
+
+  const reactivateUser = async (userId: string, role: 'teacher' | 'student') => {
+    if (role === 'teacher') {
+      const updatedTeachers = teachersList.map(t =>
+        t.id === userId ? { ...t, status: 'active' as const } : t
+      );
+      setTeachersList(updatedTeachers);
+      await saveToDeviceLedger('teachers_ledger', updatedTeachers);
+      addToast({
+        type: 'success',
+        title: 'Faculty Reactivated',
+        message: 'Teacher account access restored.'
+      });
+    } else {
+      const updatedStudents = students.map(s =>
+        s.id === userId ? { ...s, isTerminated: false } : s
+      );
+      setStudents(updatedStudents);
+      await saveToDeviceLedger('students_ledger', updatedStudents);
+      addToast({
+        type: 'success',
+        title: 'Student Reactivated',
+        message: 'Student portal access restored.'
+      });
+    }
+  };
+
+  // Direct Personal Messaging from Admin
+  const sendPersonalMessage = async (msg: Omit<PersonalMessage, 'id' | 'senderName' | 'senderRole' | 'sentAt' | 'isRead'>) => {
+    const newMsg: PersonalMessage = {
+      ...msg,
+      id: 'pmsg_' + Math.random().toString(36).substring(2, 9),
+      senderName: 'Om Shankar (Coaching Director)',
+      senderRole: 'admin',
+      sentAt: new Date().toISOString(),
+      isRead: false
+    };
+    const updated = [newMsg, ...personalMessages];
+    setPersonalMessages(updated);
+    await saveToDeviceLedger('personal_messages_ledger', updated);
+    addToast({
+      type: 'success',
+      title: 'Message Delivered',
+      message: `Personal notification sent to ${msg.recipientName}.`
+    });
+  };
+
+  const markPersonalMessageRead = async (id: string) => {
+    const updated = personalMessages.map(m => m.id === id ? { ...m, isRead: true } : m);
+    setPersonalMessages(updated);
+    await saveToDeviceLedger('personal_messages_ledger', updated);
+  };
+
+  // App Features Control Toggles
+  const toggleAppFeature = async (featureKey: keyof AppFeatures) => {
+    const updated = {
+      ...appFeatures,
+      [featureKey]: !appFeatures[featureKey]
+    };
+    setAppFeatures(updated);
+    await saveToDeviceLedger('app_features_ledger', updated);
+    addToast({
+      type: 'info',
+      title: 'Feature Control Updated',
+      message: `${String(featureKey)} is now ${updated[featureKey] ? 'ENABLED' : 'DISABLED'}.`
+    });
+  };
+
+  // Student Leads (Registered but not paid drop-offs)
+  const createStudentLead = async (leadData: Omit<StudentLead, 'id' | 'status' | 'createdAt' | 'lastStep'>) => {
+    const newLead: StudentLead = {
+      ...leadData,
+      id: 'lead_' + Math.random().toString(36).substring(2, 9),
+      status: 'unpaid_lead',
+      createdAt: new Date().toISOString(),
+      lastStep: 'registration_filled'
+    };
+    const updated = [newLead, ...studentLeads.filter(l => l.phone !== leadData.phone || l.cohortId !== leadData.cohortId)];
+    setStudentLeads(updated);
+    await saveToDeviceLedger('student_leads_ledger', updated);
+    return newLead;
+  };
+
+  const updateStudentLead = async (leadId: string, updates: Partial<StudentLead>) => {
+    const updated = studentLeads.map(l => l.id === leadId ? { ...l, ...updates } : l);
+    setStudentLeads(updated);
+    await saveToDeviceLedger('student_leads_ledger', updated);
+  };
+
+  // Duplicate Proof Shield & AI Payment Verification
+  const verifyAndProcessStudentPayment = async (params: {
+    leadId: string;
+    screenshotBase64: string;
+    utr: string;
+    payerName: string;
+    payerPhone: string;
+    payerEmail?: string;
+    schoolName?: string;
+    studentClass?: string;
+    amount: number;
+    feePlanId: string;
+    cohortId: string;
+    course: string;
+  }) => {
+    const cohort = cohorts.find(c => c.id === params.cohortId);
+    const teacher = teachersList.find(t => cohort?.teacherIds.includes(t.id));
+    const targetUpi = teacher?.payout?.upiId || institute.settlementUpi || 'phi.coaching@icici';
+    const existingUtrs = payments.map(p => p.reference.toUpperCase());
+
+    // Run AI & Duplicate Verification Engine
+    const verification = await runAIPaymentVerification({
+      screenshotBase64: params.screenshotBase64,
+      expectedAmount: params.amount,
+      expectedUpi: targetUpi,
+      utr: params.utr,
+      payerName: params.payerName,
+      existingHashes: usedScreenshotHashes,
+      existingUtrs
+    });
+
+    if (verification.isDuplicate) {
+      addToast({
+        type: 'danger',
+        title: 'Duplicate Payment Rejected',
+        message: verification.duplicateReason || 'This screenshot has already been used for enrollment!'
+      });
+      return {
+        success: false,
+        isDuplicate: true,
+        error: verification.duplicateReason || 'Duplicate screenshot or UTR detected!'
+      };
+    }
+
+    if (!verification.isValid) {
+      addToast({
+        type: 'warning',
+        title: 'Payment Verification Issue',
+        message: verification.verification.remarks
+      });
+      return {
+        success: false,
+        error: verification.verification.remarks
+      };
+    }
+
+    // Record used hash to prevent reuse ever again
+    const updatedHashes = [...usedScreenshotHashes, verification.hash];
+    setUsedScreenshotHashes(updatedHashes);
+    await saveToDeviceLedger('used_proof_hashes_ledger', updatedHashes);
+
+    // Auto-Enroll Student
+    const newRollNo = `PHI-2026-${Math.floor(100 + Math.random() * 900)}`;
+    const newStudent: Student = {
+      id: 'stu_' + Math.random().toString(36).substring(2, 9),
+      name: params.payerName.trim(),
+      rollNo: newRollNo,
+      phone: params.payerPhone.trim(),
+      email: params.payerEmail?.trim(),
+      schoolName: params.schoolName?.trim(),
+      studentClass: params.studentClass?.trim(),
+      parentPhone: params.payerPhone.trim(),
+      course: params.course,
+      cohortId: params.cohortId,
+      enrolledAt: new Date().toISOString().split('T')[0],
+      feePlanId: params.feePlanId,
+      paymentStatus: 'verified',
+      flags: [],
+      academicTags: ['Online Verified Admission', 'Batch ' + (cohort?.name || 'Main')]
+    };
+
+    const updatedStudents = [newStudent, ...students];
+    setStudents(updatedStudents);
+    await saveToDeviceLedger('students_ledger', updatedStudents);
+
+    // Record Verified Payment
+    const newPayment: Payment = {
+      id: 'pay_' + Math.random().toString(36).substring(2, 9),
+      payerStudentId: newStudent.id,
+      payerName: newStudent.name,
+      payerPhone: newStudent.phone,
+      payeeId: teacher?.id || institute.id,
+      payeeName: teacher?.payout?.accountName || teacher?.name || institute.settlementAccountName,
+      payeeUpi: targetUpi,
+      feePlanId: params.feePlanId,
+      course: params.course,
+      cohortId: params.cohortId,
+      cohortName: cohort?.name,
+      amount: params.amount,
+      currency: 'INR',
+      reference: params.utr.trim().toUpperCase(),
+      humanReference: `PHI-${cohort?.code || 'REG'}-${newRollNo.split('-').pop()}`,
+      status: 'verified',
+      createdAt: new Date().toISOString(),
+      verifiedAt: new Date().toISOString(),
+      paymentProofUrl: params.screenshotBase64,
+      verificationNote: verification.verification.remarks
+    };
+
+    const updatedPayments = [newPayment, ...payments];
+    setPayments(updatedPayments);
+    await saveToDeviceLedger('payments_ledger', updatedPayments);
+
+    // Update Lead to Enrolled
+    const updatedLeads = studentLeads.map(l =>
+      l.id === params.leadId
+        ? {
+            ...l,
+            status: 'enrolled_verified' as const,
+            lastStep: 'screenshot_uploaded' as const,
+            paymentProofUrl: params.screenshotBase64,
+            screenshotHash: verification.hash,
+            utr: params.utr.trim().toUpperCase(),
+            aiVerification: verification.verification
+          }
+        : l
+    );
+    setStudentLeads(updatedLeads);
+    await saveToDeviceLedger('student_leads_ledger', updatedLeads);
+
+    addToast({
+      type: 'success',
+      title: 'Payment Verified & Admitted!',
+      message: `Welcome ${newStudent.name}! Roll No: ${newStudent.rollNo}. Admission confirmed.`
+    });
+
+    return {
+      success: true,
+      student: newStudent,
+      remarks: verification.verification.remarks
+    };
   };
 
   const updateInstitute = async (inst: Institute) => {
@@ -892,13 +1564,15 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     });
   };
 
-  const role = account?.role || null;
+  const effectiveRole: UserRole | null = previewMode === 'student' ? 'student' : (previewMode === 'teacher' ? 'teacher' : (account?.role || null));
 
   return (
     <TeachDeskContext.Provider
       value={{
         account,
-        role,
+        role: effectiveRole,
+        previewMode,
+        setPreviewMode,
         unlockedSigningKey,
         activeTab,
         setActiveTab,
@@ -967,6 +1641,30 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         addNotice,
         aiSettings,
         updateAiSettings,
+        isMasterAdminUnlocked,
+        unlockMasterAdmin,
+        lockMasterAdmin,
+        isMasterAdminModalOpen,
+        setIsMasterAdminModalOpen,
+        resetToFreshBlankState,
+        loadDemoPracticeData,
+        enrollStudentDirect,
+        teacherRequests,
+        requestTeacherAccount,
+        approveTeacherRequest,
+        rejectTeacherRequest,
+        terminateUser,
+        reactivateUser,
+        personalMessages,
+        sendPersonalMessage,
+        markPersonalMessageRead,
+        appFeatures,
+        toggleAppFeature,
+        studentLeads,
+        createStudentLead,
+        updateStudentLead,
+        usedScreenshotHashes,
+        verifyAndProcessStudentPayment,
         toasts,
         addToast,
         dismissToast,

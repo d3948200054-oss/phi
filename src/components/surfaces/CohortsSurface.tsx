@@ -9,6 +9,7 @@ import { Select } from '../primitives/Select';
 import { Modal } from '../primitives/Modal';
 import { Cohort, Student, SeatRecord } from '../../types';
 import { Users, UserPlus, Upload, Monitor, Search, CheckCircle, Shield } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const CohortsSurface: React.FC = () => {
   const {
@@ -254,118 +255,162 @@ export const CohortsSurface: React.FC = () => {
       {/* Roster View */}
       {activeTabSub === 'roster' && (
         <div className="space-y-4">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            <div className="flex items-center gap-2 flex-1 max-w-lg">
-              <div className="relative w-full">
-                <Search size={14} className="absolute left-3 top-2.5 text-content-secondary stroke-[1.75]" />
-                <input
-                  type="text"
-                  placeholder="Find student by roll number, name, or phone..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-9 pr-3 py-1.5 text-xs rounded-md bg-white dark:bg-surface-dark border border-border dark:border-border-dark text-content-primary dark:text-content-primary-dark focus:outline-none focus:ring-1 focus:ring-rose-400"
-                />
+          {students.length === 0 ? (
+            <SurfaceBeginnerGuide
+              title="Welcome to Students Roster"
+              subtitle="Keep track of all enrolled candidates, their roll numbers, contact information, and academic performance."
+              steps={[
+                'Students can self-register using the coaching portal with code PHI-2026.',
+                'Or click "+ Add Student" above to enroll a candidate directly into your batch.',
+                'You can also bulk upload multiple students at once via "Import CSV".'
+              ]}
+              tip="Always collect both the student's phone and their parent's phone so attendance and fee alerts reach guardians promptly."
+              primaryActionLabel={cohorts.length === 0 ? "Create First Batch First" : "+ Enroll First Student"}
+              onPrimaryAction={() => {
+                if (cohorts.length === 0) {
+                  setActiveTabSub('batches');
+                  setIsCohortModalOpen(true);
+                } else {
+                  setIsStudentModalOpen(true);
+                }
+              }}
+              icon={<UserPlus size={26} />}
+            />
+          ) : (
+            <>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="flex items-center gap-2 flex-1 max-w-lg">
+                  <div className="relative w-full">
+                    <Search size={14} className="absolute left-3 top-2.5 text-content-secondary stroke-[1.75]" />
+                    <input
+                      type="text"
+                      placeholder="Find student by roll number, name, or phone..."
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      className="w-full pl-9 pr-3 py-1.5 text-xs rounded-md bg-white dark:bg-surface-dark border border-border dark:border-border-dark text-content-primary dark:text-content-primary-dark focus:outline-none focus:ring-1 focus:ring-rose-400"
+                    />
+                  </div>
+                  <select
+                    value={selectedCohortFilter}
+                    onChange={(e) => setSelectedCohortFilter(e.target.value)}
+                    className="px-2.5 py-1.5 text-xs rounded-md bg-white dark:bg-surface-dark border border-border dark:border-border-dark text-content-primary dark:text-content-primary-dark focus:outline-none"
+                  >
+                    <option value="all">All Batches</option>
+                    {cohorts.map(c => (
+                      <option key={c.id} value={c.id}>{c.name}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => setActiveTabSub('import-csv')}
+                    icon={<Upload size={14} />}
+                  >
+                    Import CSV
+                  </Button>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={() => setIsStudentModalOpen(true)}
+                    icon={<UserPlus size={14} />}
+                  >
+                    Add Student
+                  </Button>
+                </div>
               </div>
-              <select
-                value={selectedCohortFilter}
-                onChange={(e) => setSelectedCohortFilter(e.target.value)}
-                className="px-2.5 py-1.5 text-xs rounded-md bg-white dark:bg-surface-dark border border-border dark:border-border-dark text-content-primary dark:text-content-primary-dark focus:outline-none"
-              >
-                <option value="all">All Batches</option>
-                {cohorts.map(c => (
-                  <option key={c.id} value={c.id}>{c.name}</option>
-                ))}
-              </select>
-            </div>
-            <div className="flex items-center gap-2">
-              <Button
-                variant="secondary"
-                size="sm"
-                onClick={() => setActiveTabSub('import-csv')}
-                icon={<Upload size={14} />}
-              >
-                Import CSV
-              </Button>
-              <Button
-                variant="primary"
-                size="sm"
-                onClick={() => setIsStudentModalOpen(true)}
-                icon={<UserPlus size={14} />}
-              >
-                Add Student
-              </Button>
-            </div>
-          </div>
 
-          <Table
-            columns={studentColumns}
-            data={filteredStudents}
-            keyExtractor={(s) => s.id}
-            emptyMessage="No students match the active search or cohort filter."
-          />
+              <Table
+                columns={studentColumns}
+                data={filteredStudents}
+                keyExtractor={(s) => s.id}
+                emptyMessage="No students match the active search or cohort filter."
+              />
+            </>
+          )}
         </div>
       )}
 
       {/* Cohorts / Batches View */}
       {activeTabSub === 'batches' && (
         <div className="space-y-4">
-          <div className="flex justify-between items-center">
-            <p className="text-xs text-content-secondary dark:text-content-secondary-dark">
-              Active student batches enrolled under institute curricula and linked fee plans.
-            </p>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsCohortModalOpen(true)}
-              icon={<Users size={14} />}
-            >
-              Create New Cohort
-            </Button>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {cohorts.map((cohort) => {
-              const cohortStudents = students.filter(s => s.cohortId === cohort.id);
-              const feePlan = feePlans.find(p => p.cohortId === cohort.id || p.id === cohort.feePlanId);
-              return (
-                <Panel
-                  key={cohort.id}
-                  title={cohort.name}
-                  subtitle={`${cohort.course} · Code: ${cohort.code}`}
-                  badge={<Badge variant="indigo">{cohort.code}</Badge>}
+          {cohorts.length === 0 ? (
+            <SurfaceBeginnerGuide
+              title="Welcome to Coaching Batches (Cohorts)"
+              subtitle="Batches organize students into specific courses and subjects (e.g., Morning Physics JEE 2026, Target NEET Pioneer)."
+              steps={[
+                'Click "+ Create First Batch" to set up your primary class.',
+                'Select the Course track (IIT-JEE, NEET, Foundation, or Boards).',
+                'Specify the Subject and assign teaching faculty.',
+                'Once your batch is live, students can select it during registration or you can add them directly.'
+              ]}
+              tip="Naming batches with the graduation year (e.g., 'Alpha JEE 2026') helps students and parents identify their target entrance year immediately."
+              primaryActionLabel="+ Create First Batch"
+              onPrimaryAction={() => setIsCohortModalOpen(true)}
+              icon={<Users size={26} />}
+            />
+          ) : (
+            <>
+              <div className="flex justify-between items-center">
+                <p className="text-xs text-content-secondary dark:text-content-secondary-dark">
+                  Active student batches enrolled under institute curricula and linked fee plans.
+                </p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={() => setIsCohortModalOpen(true)}
+                  icon={<Users size={14} />}
                 >
-                  <div className="space-y-2 text-xs">
-                    <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
-                      <span className="text-content-secondary">Enrolled Students:</span>
-                      <span className="font-mono font-semibold tabular-nums">{cohortStudents.length}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
-                      <span className="text-content-secondary">Subject Specialization:</span>
-                      <span className="font-medium">{cohort.subject}</span>
-                    </div>
-                    <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
-                      <span className="text-content-secondary">Linked Fee Plan:</span>
-                      <span className="font-mono text-cyan-700 dark:text-cyan-400 font-medium">
-                        {feePlan ? `₹${feePlan.amount.toLocaleString()} (${feePlan.durationMonths}m)` : 'Unassigned'}
-                      </span>
-                    </div>
-                    <div className="pt-2 flex justify-end gap-2">
-                      <Button
-                        variant="secondary"
-                        size="sm"
-                        onClick={() => {
-                          setSelectedCohortFilter(cohort.id);
-                          setActiveTabSub('roster');
-                        }}
-                      >
-                        View Roster
-                      </Button>
-                    </div>
-                  </div>
-                </Panel>
-              );
-            })}
-          </div>
+                  Create New Cohort
+                </Button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {cohorts.map((cohort) => {
+                  const cohortStudents = students.filter(s => s.cohortId === cohort.id);
+                  const feePlan = feePlans.find(p => p.cohortId === cohort.id || p.id === cohort.feePlanId);
+                  return (
+                    <Panel
+                      key={cohort.id}
+                      title={cohort.name}
+                      subtitle={`${cohort.course} · Code: ${cohort.code}`}
+                      badge={<Badge variant="indigo">{cohort.code}</Badge>}
+                    >
+                      <div className="space-y-2 text-xs">
+                        <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
+                          <span className="text-content-secondary">Enrolled Students:</span>
+                          <span className="font-mono font-semibold tabular-nums">{cohortStudents.length}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
+                          <span className="text-content-secondary">Subject Specialization:</span>
+                          <span className="font-medium">{cohort.subject}</span>
+                        </div>
+                        <div className="flex justify-between py-1 border-b border-border/60 dark:border-border-dark/60">
+                          <span className="text-content-secondary">Linked Fee Plan:</span>
+                          <span className="font-mono text-cyan-700 dark:text-cyan-400 font-medium">
+                            {feePlan ? `₹${feePlan.amount.toLocaleString()} (${feePlan.durationMonths}m)` : 'Unassigned'}
+                          </span>
+                        </div>
+                        <div className="pt-2 flex justify-end gap-2">
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={() => {
+                              setSelectedCohortFilter(cohort.id);
+                              setActiveTabSub('roster');
+                            }}
+                          >
+                            View Roster
+                          </Button>
+                        </div>
+                      </div>
+                    </Panel>
+                  );
+                })}
+              </div>
+            </>
+          )}
         </div>
       )}
 

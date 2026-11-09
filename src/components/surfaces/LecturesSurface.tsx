@@ -11,6 +11,7 @@ import { MobileFilePicker } from '../primitives/MobileFilePicker';
 import { Lecture, QuestionDraft } from '../../types';
 import { runQuestionChecks } from '../../utils/questionChecks';
 import { Video, Play, FastForward, Sparkles, Mic, FileText, CheckCircle2, AlertCircle } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const LecturesSurface: React.FC = () => {
   const {
@@ -316,7 +317,22 @@ export const LecturesSurface: React.FC = () => {
             </Panel>
           </div>
         </div>
-      ) : null}
+      ) : (
+        <SurfaceBeginnerGuide
+          title="Classroom Lecture Studio"
+          subtitle="Publish video recordings, synchronized chapter timestamps, and extracted practice questions for your coaching batches."
+          steps={[
+            'Click "Process New Lecture" to open the studio.',
+            'Assign the lecture to a batch (e.g. JEE Elite Physics).',
+            'Upload your video recording or paste your transcript notes with [mm:ss] time prefixes.',
+            'Once published, your enrolled students will have immediate access to study notes and auto-generated questions.'
+          ]}
+          tip="Pasting transcripts with timestamp prefixes like [05:30] automatically creates instant clickable video chapters for your students."
+          primaryActionLabel="+ Process First Lecture"
+          onPrimaryAction={() => setIsUploadOpen(true)}
+          icon={<Video size={28} />}
+        />
+      )}
 
       {/* Upload & Extraction Modal */}
       <Modal

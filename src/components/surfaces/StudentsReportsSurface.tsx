@@ -7,9 +7,10 @@ import { Button } from '../primitives/Button';
 import { Modal } from '../primitives/Modal';
 import { Student, Attempt } from '../../types';
 import { Download, Flag, Search, ShieldCheck, GraduationCap, AlertTriangle, FileText } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const StudentsReportsSurface: React.FC = () => {
-  const { students, attempts, flagStudent, cohorts, lectures } = useTeachDeskStore();
+  const { students, attempts, flagStudent, cohorts, lectures, setActiveTab } = useTeachDeskStore();
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -72,7 +73,23 @@ export const StudentsReportsSurface: React.FC = () => {
 
   return (
     <div className="space-y-6 animate-fade-in">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+      {students.length === 0 ? (
+        <SurfaceBeginnerGuide
+          title="Student Performance Dossiers"
+          subtitle="Generate in-depth academic dossiers, calculated accuracy percentiles, exam logs, syllabus video coverage, and integrity bands for every enrolled candidate."
+          steps={[
+            'Students can self-register from the welcome portal using invite code PHI-2026.',
+            'Or go to the Cohorts & Batches tab to enroll students directly into your batches.',
+            'As soon as students complete practice questions and tests, their real-time performance analytics will appear here.'
+          ]}
+          tip="You can tag high-performing students with academic flags or monitor students who are falling behind in their exam attempts."
+          primaryActionLabel="Go to Batches to Enroll Students"
+          onPrimaryAction={() => setActiveTab('cohorts')}
+          icon={<GraduationCap size={28} />}
+        />
+      ) : (
+        <>
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h2 className="font-serif font-semibold text-lg text-content-primary dark:text-content-primary-dark">
             Students & Performance Reports Dossier
@@ -250,6 +267,8 @@ export const StudentsReportsSurface: React.FC = () => {
           </div>
         ) : null}
       </div>
+      </>
+      )}
 
       {/* Flag Incident Modal */}
       <Modal

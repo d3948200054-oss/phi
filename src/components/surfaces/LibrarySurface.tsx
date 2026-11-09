@@ -9,6 +9,7 @@ import { Modal } from '../primitives/Modal';
 import { MobileFilePicker } from '../primitives/MobileFilePicker';
 import { LibraryItem } from '../../types';
 import { BookOpen, Download, FileText, Trash2, Plus, HardDrive } from 'lucide-react';
+import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const LibrarySurface: React.FC = () => {
   const { libraryItems, addLibraryItem, removeLibraryItem } = useTeachDeskStore();
@@ -90,8 +91,24 @@ export const LibrarySurface: React.FC = () => {
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         {/* Modules Grid (8 cols) */}
         <div className="lg:col-span-8 space-y-4">
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {libraryItems.map(item => (
+          {libraryItems.length === 0 ? (
+            <SurfaceBeginnerGuide
+              title="Classroom Library & Study Material"
+              subtitle="Upload course modules, PDF formula handbooks, NCERT solutions, and reference study notes for your batches."
+              steps={[
+                'Click "Upload New Module" to share study materials.',
+                'Specify the Subject and list key chapter highlights.',
+                'Select your PDF or document file (e.g. Mechanics Formulas, Organic Reaction Roadmaps).',
+                'Your enrolled students can view and download them for offline exam preparation.'
+              ]}
+              tip="Upload high-yield formula sheets before major test assessments to help students with rapid revision."
+              primaryActionLabel="+ Upload First Study Module"
+              onPrimaryAction={() => setIsUploadModalOpen(true)}
+              icon={<BookOpen size={28} />}
+            />
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              {libraryItems.map(item => (
               <Panel
                 key={item.id}
                 title={item.title}
@@ -135,7 +152,8 @@ export const LibrarySurface: React.FC = () => {
                 </div>
               </Panel>
             ))}
-          </div>
+            </div>
+          )}
         </div>
 
         {/* Downloads History Panel (4 cols) */}
