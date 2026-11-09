@@ -1376,9 +1376,8 @@ export const AdminConsoleSurface: React.FC = () => {
                 Owner credentials control full access to this panel.
               </p>
               <div className="p-3 rounded-lg bg-[#0b1120] border border-slate-800 mt-2 text-xs font-mono text-slate-300 space-y-1">
-                <div>Default Passwords: <code className="text-amber-300">omshankar</code> or <code className="text-amber-300">Omshankar</code></div>
-                <div>Default PIN: <code className="text-amber-300">27102008</code></div>
-                <div>Status: <span className="text-emerald-400">{currentCreds.isCustom ? 'Custom Password Configured' : 'Factory Default Credentials Active'}</span></div>
+                <div>Status: <span className="text-emerald-400">{currentCreds.isCustom ? 'Custom Password Configured' : 'Founder Master Credentials Active'}</span></div>
+                <div className="text-[11px] text-slate-500">Dual-factor protected with maximum attempt lockout shield.</div>
               </div>
             </div>
 
@@ -1390,7 +1389,7 @@ export const AdminConsoleSurface: React.FC = () => {
                   required
                   value={currPassword}
                   onChange={(e) => setCurrPassword(e.target.value)}
-                  placeholder="omshankar / Omshankar"
+                  placeholder="Enter current password"
                 />
 
                 <Field
@@ -1399,7 +1398,7 @@ export const AdminConsoleSurface: React.FC = () => {
                   required
                   value={currPin}
                   onChange={(e) => setCurrPin(e.target.value)}
-                  placeholder="27102008"
+                  placeholder="Enter current PIN"
                 />
               </div>
 
@@ -1438,7 +1437,7 @@ export const AdminConsoleSurface: React.FC = () => {
                       maxLength={8}
                       value={newPin}
                       onChange={(e) => setNewPin(e.target.value.replace(/\D/g, ''))}
-                      placeholder="e.g. 27102008"
+                      placeholder="Enter 4-8 digit numeric PIN"
                       className="w-full bg-[#162035] border border-slate-700 rounded-lg px-3 py-2 text-xs text-white focus:outline-none focus:border-amber-500 font-mono"
                     />
                     <button
@@ -1480,9 +1479,9 @@ export const AdminConsoleSurface: React.FC = () => {
                     variant="outline"
                     className="border-slate-700 text-slate-400 hover:text-slate-200"
                     onClick={() => {
-                      if (confirm('Reset credentials back to factory default (omshankar / 27102008)?')) {
+                      if (confirm('Reset credentials back to factory default?')) {
                         resetAdminCredentialsToDefault();
-                        setCredMessage({ type: 'success', text: 'Reset back to default omshankar / 27102008' });
+                        setCredMessage({ type: 'success', text: 'Reset back to default credentials' });
                       }
                     }}
                   >

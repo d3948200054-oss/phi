@@ -256,7 +256,9 @@ export const MasterAdminGateModal: React.FC<MasterAdminGateModalProps> = ({
                     <KeyRound size={13} className="text-amber-400" />
                     Master Admin Password
                   </span>
-                  <span className="text-[10px] text-amber-400/80 font-mono">omshankar / Omshankar</span>
+                  <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                    <Shield size={10} className="text-amber-500/70" /> Confidential
+                  </span>
                 </label>
                 <div className="relative">
                   <input
@@ -265,8 +267,8 @@ export const MasterAdminGateModal: React.FC<MasterAdminGateModalProps> = ({
                     onChange={(e) => setPassword(e.target.value)}
                     disabled={isLockedOut || isVerifying}
                     autoFocus
-                    placeholder="Enter password (omshankar or Omshankar)..."
-                    className="w-full bg-[#141d33] border border-slate-700 focus:border-amber-500 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-500 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50 transition-colors"
+                    placeholder="••••••••••••"
+                    className="w-full bg-[#141d33] border border-slate-700 focus:border-amber-500 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-600 font-mono focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50 transition-colors"
                   />
                   <button
                     type="button"
@@ -286,7 +288,9 @@ export const MasterAdminGateModal: React.FC<MasterAdminGateModalProps> = ({
                     <Lock size={13} className="text-amber-400" />
                     Master Security PIN
                   </span>
-                  <span className="text-[10px] text-amber-400/80 font-mono">PIN: 27102008</span>
+                  <span className="text-[10px] text-slate-500 font-mono flex items-center gap-1">
+                    <Lock size={10} className="text-amber-500/70" /> Confidential
+                  </span>
                 </label>
                 <div className="relative">
                   <input
@@ -295,8 +299,8 @@ export const MasterAdminGateModal: React.FC<MasterAdminGateModalProps> = ({
                     maxLength={8}
                     onChange={(e) => setPin(e.target.value.replace(/\D/g, ''))}
                     disabled={isLockedOut || isVerifying}
-                    placeholder="Enter PIN (27102008)..."
-                    className="w-full bg-[#141d33] border border-slate-700 focus:border-amber-500 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-500 font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50 transition-colors"
+                    placeholder="••••••••"
+                    className="w-full bg-[#141d33] border border-slate-700 focus:border-amber-500 rounded-lg px-3.5 py-2.5 text-sm text-white placeholder-slate-600 font-mono tracking-widest focus:outline-none focus:ring-1 focus:ring-amber-500 disabled:opacity-50 transition-colors"
                   />
                   <button
                     type="button"
