@@ -23,7 +23,9 @@ export const CohortsSurface: React.FC = () => {
     checkOutSeat,
     teachersList,
     institute,
-    feePlans
+    feePlans,
+    approveStudentAdmission,
+    rejectStudentAdmission
   } = useTeachDeskStore();
 
   const [activeTabSub, setActiveTabSub] = useState<'roster' | 'batches' | 'lab-seats' | 'import-csv'>('roster');
@@ -190,6 +192,32 @@ export const CohortsSurface: React.FC = () => {
         if (s.paymentStatus === 'submitted') return <Badge variant="amber">Awaiting Check</Badge>;
         if (s.paymentStatus === 'overdue') return <Badge variant="rose">Overdue</Badge>;
         return <Badge variant="slate">Pending</Badge>;
+      }
+    },
+    {
+      key: 'admissionStatus',
+      header: 'Review Status',
+      align: 'center',
+      render: (s) => {
+        if (s.admissionStatus === 'pending_review') {
+          return (
+            <div className="flex items-center gap-1.5 justify-center">
+              <Badge variant="amber">Pending Review</Badge>
+              <button
+                type="button"
+                onClick={() => approveStudentAdmission(s.id)}
+                className="px-2 py-0.5 rounded bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold text-[10px] transition-colors shadow-xs"
+                title="Approve student into this batch"
+              >
+                Approve ✓
+              </button>
+            </div>
+          );
+        }
+        if (s.admissionStatus === 'rejected') {
+          return <Badge variant="rose">Rejected</Badge>;
+        }
+        return <Badge variant="teal">Approved</Badge>;
       }
     },
     {

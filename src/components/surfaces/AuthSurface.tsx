@@ -40,6 +40,7 @@ import { MasterAdminGateModal } from '../modals/MasterAdminGateModal';
 export const AuthSurface: React.FC = () => {
   const {
     signIn,
+    signInAsStudent,
     requestTeacherAccount,
     teacherRequests,
     institute,
@@ -53,7 +54,11 @@ export const AuthSurface: React.FC = () => {
     setIsMasterAdminModalOpen
   } = useTeachDeskStore();
 
-  const [mode, setMode] = useState<'signin' | 'teacher-request' | 'student-join' | 'student-lookup'>('signin');
+  const [mode, setMode] = useState<'signin' | 'student-signin' | 'teacher-request' | 'student-join' | 'student-lookup'>('student-signin');
+
+  // Student Sign In form
+  const [studentSignInQuery, setStudentSignInQuery] = useState('');
+  const [studentSignInError, setStudentSignInError] = useState<string | null>(null);
 
   // Sign In form
   const [signInEmail, setSignInEmail] = useState('');
@@ -154,6 +159,46 @@ export const AuthSurface: React.FC = () => {
     return generateUpiVectorQrSvg(upiLinks.rawUri, 220);
   }, [upiLinks]);
 
+  // 0. Student Sign In
+  const handleStudentSignIn = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setStudentSignInError(null);
+    setIsSubmitting(true);
+
+    const q = studentSignInQuery.trim().toUpperCase();
+    const cleanDigits = studentSignInQuery.replace(/\D/g, '');
+
+    if (!q) {
+      setStudentSignInError('Please enter your Roll Number, registered Mobile Number, or Email.');
+      setIsSubmitting(false);
+      return;
+    }
+
+    try {
+      const found = students.find(s =>
+        s.rollNo.toUpperCase() === q ||
+        (cleanDigits.length >= 7 && s.phone.replace(/\D/g, '').includes(cleanDigits)) ||
+        (s.email && s.email.toUpperCase() === q)
+      );
+
+      if (!found) {
+        setStudentSignInError(
+          students.length === 0
+            ? 'No registered students found. Please click "Student Admission" to complete admission and get your Roll Number.'
+            : 'No student found matching this Roll Number, Phone, or Email. Please check your details or enroll through Student Admission.'
+        );
+        setIsSubmitting(false);
+        return;
+      }
+
+      await signInAsStudent(found);
+    } catch (err: any) {
+      setStudentSignInError(err.message || 'Student authentication error.');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // 1. Faculty Sign In
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -163,6 +208,20 @@ export const AuthSurface: React.FC = () => {
     try {
       const target = teachersList.find(t => t.email.toLowerCase() === signInEmail.trim().toLowerCase());
       if (!target) {
+        // Check if there is an enrolled student matching this query
+        const cleanDigits = signInEmail.replace(/\D/g, '');
+        const matchedStudent = students.find(s =>
+          (s.email && s.email.toLowerCase() === signInEmail.trim().toLowerCase()) ||
+          s.rollNo.toUpperCase() === signInEmail.trim().toUpperCase() ||
+          (cleanDigits.length >= 8 && s.phone.replace(/\D/g, '').includes(cleanDigits))
+        );
+        if (matchedStudent) {
+          // Directly sign in as student!
+          await signInAsStudent(matchedStudent);
+          setIsSubmitting(false);
+          return;
+        }
+
         // Check if there is a pending request for this email
         const pendingReq = teacherRequests.find(r => r.email.toLowerCase() === signInEmail.trim().toLowerCase());
         if (pendingReq) {
@@ -179,8 +238,8 @@ export const AuthSurface: React.FC = () => {
 
         setSignInError(
           teachersList.length === 0
-            ? 'No teacher accounts registered yet. Click "Teacher Request" to apply for a faculty account.'
-            : 'No account found with this email. Please apply for a teacher account or check your email.'
+            ? 'No teacher accounts registered yet. If you are a student, click "Student Login". If you are faculty, click "Teacher Request".'
+            : 'No faculty account found with this email. If you are an enrolled student, please use "Student Login".'
         );
         setIsSubmitting(false);
         return;
@@ -414,26 +473,15 @@ export const AuthSurface: React.FC = () => {
         {/* Navigation Tabs */}
         <div className="flex border-b border-slate-800 text-xs font-semibold overflow-x-auto bg-[#0f1729]">
           <button
-            onClick={() => setMode('signin')}
+            onClick={() => setMode('student-signin')}
             className={`flex-1 py-3 px-3 text-center border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
-              mode === 'signin'
+              mode === 'student-signin'
                 ? 'border-amber-400 text-amber-300 bg-[#16223b]'
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <Lock size={14} />
-            Faculty Sign In
-          </button>
-          <button
-            onClick={() => setMode('teacher-request')}
-            className={`flex-1 py-3 px-3 text-center border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
-              mode === 'teacher-request'
-                ? 'border-amber-400 text-amber-300 bg-[#16223b]'
-                : 'border-transparent text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <UserCheck size={14} />
-            Teacher Request
+            <GraduationCap size={14} />
+            Student Login
           </button>
           <button
             onClick={() => {
@@ -446,8 +494,19 @@ export const AuthSurface: React.FC = () => {
                 : 'border-transparent text-slate-400 hover:text-slate-200'
             }`}
           >
-            <GraduationCap size={14} />
-            Student Admission
+            <Sparkles size={14} />
+            New Admission
+          </button>
+          <button
+            onClick={() => setMode('signin')}
+            className={`flex-1 py-3 px-3 text-center border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+              mode === 'signin'
+                ? 'border-amber-400 text-amber-300 bg-[#16223b]'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <Lock size={14} />
+            Faculty Sign In
           </button>
           <button
             onClick={() => setMode('student-lookup')}
@@ -460,10 +519,97 @@ export const AuthSurface: React.FC = () => {
             <Search size={14} />
             Verify ID
           </button>
+          <button
+            onClick={() => setMode('teacher-request')}
+            className={`flex-1 py-3 px-3 text-center border-b-2 whitespace-nowrap transition-colors flex items-center justify-center gap-1.5 ${
+              mode === 'teacher-request'
+                ? 'border-amber-400 text-amber-300 bg-[#16223b]'
+                : 'border-transparent text-slate-400 hover:text-slate-200'
+            }`}
+          >
+            <UserCheck size={14} />
+            Teacher Request
+          </button>
         </div>
 
         {/* Tab Content */}
         <div className="p-5 sm:p-6">
+          {/* TAB 0: STUDENT SIGN IN */}
+          {mode === 'student-signin' && (
+            <form onSubmit={handleStudentSignIn} className="space-y-4">
+              <div className="p-3.5 rounded-xl bg-amber-950/30 border border-amber-500/20 text-xs text-amber-200">
+                <span className="font-semibold block mb-0.5 text-amber-300 flex items-center gap-1.5">
+                  <GraduationCap size={15} />
+                  Student Portal Access
+                </span>
+                Enter your Roll Number (e.g. PHI-2026-101), registered Mobile Number, or Email to sign in and enter your courses, lectures, and exams.
+              </div>
+
+              <Field
+                label="Student Roll No / Phone / Email"
+                required
+                value={studentSignInQuery}
+                onChange={(e) => setStudentSignInQuery(e.target.value)}
+                placeholder="e.g. PHI-2026-101 or 98765 43210"
+                helper="Enrolled students can log in directly using their Roll Number, Mobile, or Email."
+              />
+
+              {studentSignInError && (
+                <div className="p-3.5 rounded-xl bg-rose-950/50 border border-rose-500/30 text-xs text-rose-300 flex items-start gap-2.5">
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5 text-rose-400" />
+                  <div className="space-y-1">
+                    <p>{studentSignInError}</p>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMode('student-join');
+                        setStudentStep('form');
+                      }}
+                      className="text-amber-400 hover:underline font-semibold block"
+                    >
+                      Click here to Register for Admission →
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              <Button
+                type="submit"
+                variant="primary"
+                className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-sm py-2.5 shadow-md"
+                disabled={isSubmitting}
+                icon={<ArrowRight size={16} />}
+              >
+                {isSubmitting ? 'Verifying Student ID...' : 'Sign In & Enter Student Portal →'}
+              </Button>
+
+              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+                <span>Not registered yet?</span>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setMode('student-join');
+                    setStudentStep('form');
+                  }}
+                  className="font-medium text-amber-400 hover:underline"
+                >
+                  Student Admission & Batch Selection →
+                </button>
+              </div>
+
+              <div className="flex items-center justify-between text-xs text-slate-400 pt-1">
+                <span>Faculty member?</span>
+                <button
+                  type="button"
+                  onClick={() => setMode('signin')}
+                  className="font-medium text-slate-300 hover:text-white hover:underline"
+                >
+                  Faculty Sign In →
+                </button>
+              </div>
+            </form>
+          )}
+
           {/* TAB 1: FACULTY SIGN IN */}
           {mode === 'signin' && (
             <form onSubmit={handleSignIn} className="space-y-4">
@@ -510,14 +656,20 @@ export const AuthSurface: React.FC = () => {
                 {isSubmitting ? 'Verifying Account...' : 'Sign In as Teacher'}
               </Button>
 
-              <div className="pt-3 border-t border-slate-800 flex items-center justify-between text-xs text-slate-400">
-                <span>Want to teach at Phi Coaching?</span>
+              <div className="pt-3 border-t border-slate-800 flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+                <button
+                  type="button"
+                  onClick={() => setMode('student-signin')}
+                  className="font-medium text-amber-400 hover:underline"
+                >
+                  Are you a student? Student Login →
+                </button>
                 <button
                   type="button"
                   onClick={() => setMode('teacher-request')}
-                  className="font-medium text-amber-400 hover:underline"
+                  className="font-medium text-slate-400 hover:text-slate-200 hover:underline"
                 >
-                  Ask Admin for Teacher Account →
+                  Ask Admin for Faculty Account →
                 </button>
               </div>
             </form>
@@ -1078,15 +1230,18 @@ export const AuthSurface: React.FC = () => {
                       <CheckCircle2 size={32} />
                     </div>
                     <div>
-                      <span className="text-[10px] font-mono uppercase tracking-widest bg-emerald-500/20 text-emerald-300 px-2.5 py-0.5 rounded font-bold border border-emerald-500/30">
-                        ADMISSION & PAYMENT VERIFIED
+                      <span className="text-[10px] font-mono uppercase tracking-widest bg-amber-500/20 text-amber-300 px-2.5 py-0.5 rounded font-bold border border-amber-500/30">
+                        REGISTRATION SUBMITTED · PENDING TEACHER REVIEW
                       </span>
                       <h3 className="font-serif font-bold text-xl text-white mt-1.5">
-                        Welcome to Phi Coaching!
+                        Sent to Batch Teacher for Review!
                       </h3>
+                      <p className="text-xs text-slate-300 mt-1 max-w-md mx-auto">
+                        Your admission details and payment reference have been transmitted to batch faculty <strong className="text-amber-300">({payeeName})</strong> for review and enrollment approval.
+                      </p>
                       {aiRemark && (
                         <p className="text-xs text-emerald-300 font-mono mt-1">
-                          {aiRemark}
+                          ✓ AI Optical Scan: {aiRemark}
                         </p>
                       )}
                     </div>
@@ -1094,8 +1249,8 @@ export const AuthSurface: React.FC = () => {
                     {/* Official Admission Card */}
                     <div className="p-4 rounded-xl bg-[#0f172a] border border-slate-700 text-left space-y-2.5 text-xs text-slate-200">
                       <div className="flex justify-between items-center pb-2 border-b border-slate-800">
-                        <span className="font-bold text-sm text-amber-400 font-serif">PHI COACHING ADMISSION PASS</span>
-                        <span className="font-mono text-[11px] font-bold text-emerald-400">STATUS: ACTIVE</span>
+                        <span className="font-bold text-sm text-amber-400 font-serif">PHI COACHING REGISTRATION SLIP</span>
+                        <span className="font-mono text-[11px] font-bold text-amber-400">STATUS: PENDING TEACHER REVIEW</span>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-[11px]">
                         <div>
@@ -1119,11 +1274,25 @@ export const AuthSurface: React.FC = () => {
                       </div>
                     </div>
 
-                    <div className="flex gap-2.5 justify-center pt-2">
+                    {/* Primary Button to enter student portal */}
+                    <div className="pt-2">
                       <Button
+                        type="button"
                         variant="primary"
+                        size="lg"
+                        className="w-full bg-gradient-to-r from-amber-500 via-amber-400 to-amber-500 hover:from-amber-400 hover:to-amber-300 text-slate-950 font-black shadow-lg shadow-amber-500/25 text-sm py-3 cursor-pointer"
+                        onClick={() => signInAsStudent(confirmedStudent)}
+                        icon={<ArrowRight size={18} className="stroke-[2.5]" />}
+                      >
+                        🚀 Enter App / Go to Student Dashboard
+                      </Button>
+                    </div>
+
+                    <div className="flex gap-2.5 justify-center pt-1">
+                      <Button
+                        variant="outline"
                         size="md"
-                        className="bg-amber-500 hover:bg-amber-600 text-slate-950 font-bold"
+                        className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800"
                         onClick={() => window.print()}
                         icon={<Printer size={15} />}
                       >
@@ -1132,7 +1301,7 @@ export const AuthSurface: React.FC = () => {
                       <Button
                         variant="outline"
                         size="md"
-                        className="border-slate-700 text-slate-300"
+                        className="flex-1 border-slate-700 text-slate-300 hover:bg-slate-800"
                         onClick={() => {
                           setStudentStep('form');
                           setSName('');
@@ -1183,7 +1352,7 @@ export const AuthSurface: React.FC = () => {
               )}
 
               {lookupResult && (
-                <div className="p-4 rounded-xl bg-[#0f172a] border border-emerald-500/40 text-xs space-y-2.5">
+                <div className="p-4 rounded-xl bg-[#0f172a] border border-emerald-500/40 text-xs space-y-3">
                   <div className="flex items-center justify-between pb-2 border-b border-slate-800">
                     <span className="font-semibold text-white text-sm">{lookupResult.name}</span>
                     <span className="font-mono text-amber-400 font-bold text-sm">{lookupResult.rollNo}</span>
@@ -1205,6 +1374,18 @@ export const AuthSurface: React.FC = () => {
                       <span className="text-slate-400">Phone:</span>
                       <p className="font-mono text-slate-200">{lookupResult.phone}</p>
                     </div>
+                  </div>
+
+                  <div className="pt-2">
+                    <Button
+                      type="button"
+                      variant="primary"
+                      className="w-full bg-gradient-to-r from-amber-500 to-amber-600 hover:from-amber-400 hover:to-amber-500 text-slate-950 font-bold text-xs py-2.5 shadow-md"
+                      onClick={() => signInAsStudent(lookupResult)}
+                      icon={<ArrowRight size={15} />}
+                    >
+                      🚀 Enter App as {lookupResult.name} ({lookupResult.rollNo}) →
+                    </Button>
                   </div>
                 </div>
               )}

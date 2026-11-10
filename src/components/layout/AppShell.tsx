@@ -33,6 +33,7 @@ import { AdminConsoleSurface } from '../surfaces/AdminConsoleSurface';
 
 export const AppShell: React.FC = () => {
   const {
+    account,
     activeTab,
     setActiveTab,
     role,
@@ -119,7 +120,7 @@ export const AppShell: React.FC = () => {
         <TopCommandBar />
 
         {/* Live Role Preview Banner */}
-        {previewMode !== 'admin' && (
+        {account?.role === 'admin' && previewMode !== 'admin' && (
           <div className="bg-gradient-to-r from-amber-600 via-amber-500 to-amber-600 text-slate-950 px-4 py-2 font-mono text-xs font-bold flex flex-wrap items-center justify-between gap-2 shadow-md shrink-0">
             <div className="flex items-center gap-2">
               <span className="w-2 h-2 rounded-full bg-slate-950 animate-pulse" />

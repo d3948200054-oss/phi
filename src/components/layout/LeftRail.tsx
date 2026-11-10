@@ -71,15 +71,22 @@ export const LeftRail: React.FC<LeftRailProps> = ({ collapsed, onToggleCollapse 
     }
   };
 
-  const sections = [
-    { key: 'main', label: 'Overview & Rosters' },
-    { key: 'academic', label: 'Academic & Content' },
-    { key: 'supervision', label: 'Exam Supervision' },
-    { key: 'operations', label: 'Operations & Fees' },
-    { key: 'admin', label: 'Owner Administration' },
-  ] as const;
-
   const currentRole = role || 'teacher';
+
+  const sections = currentRole === 'student'
+    ? ([
+        { key: 'main', label: 'Student Overview' },
+        { key: 'academic', label: 'Lectures & Studies' },
+        { key: 'supervision', label: 'Tests & Assessments' },
+        { key: 'operations', label: 'Student Support' },
+      ] as const)
+    : ([
+        { key: 'main', label: 'Overview & Rosters' },
+        { key: 'academic', label: 'Academic & Content' },
+        { key: 'supervision', label: 'Exam Supervision' },
+        { key: 'operations', label: 'Operations & Fees' },
+        { key: 'admin', label: 'Owner Administration' },
+      ] as const);
 
   const isFeatureEnabled = (tabId: TabId) => {
     if (currentRole === 'admin') return true; // admin can always see all surfaces

@@ -4,6 +4,8 @@ import {
   GraduationCap,
   BookOpen,
   FileSpreadsheet,
+  Video,
+  Sparkles,
   Menu,
 } from 'lucide-react';
 import { useTeachDeskStore } from '../../hooks/useTeachDeskStore';
@@ -20,30 +22,53 @@ interface NavItem {
 }
 
 export const BottomNav: React.FC<BottomNavProps> = ({ onMenuOpen }) => {
-  const { activeTab, setActiveTab } = useTeachDeskStore();
+  const { activeTab, setActiveTab, role } = useTeachDeskStore();
 
-  const navItems: NavItem[] = [
-    {
-      id: 'dashboard',
-      label: 'Home',
-      icon: <LayoutDashboard size={22} className="stroke-[1.75]" />,
-    },
-    {
-      id: 'students-reports',
-      label: 'Students',
-      icon: <GraduationCap size={22} className="stroke-[1.75]" />,
-    },
-    {
-      id: 'library',
-      label: 'Library',
-      icon: <BookOpen size={22} className="stroke-[1.75]" />,
-    },
-    {
-      id: 'exam-builder',
-      label: 'Exams',
-      icon: <FileSpreadsheet size={22} className="stroke-[1.75]" />,
-    },
-  ];
+  const navItems: NavItem[] = role === 'student'
+    ? [
+        {
+          id: 'dashboard',
+          label: 'Home',
+          icon: <LayoutDashboard size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'lectures',
+          label: 'Lectures',
+          icon: <Video size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'library',
+          label: 'Library',
+          icon: <BookOpen size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'daily-warmup',
+          label: 'Warm-up',
+          icon: <Sparkles size={22} className="stroke-[1.75]" />,
+        },
+      ]
+    : [
+        {
+          id: 'dashboard',
+          label: 'Home',
+          icon: <LayoutDashboard size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'students-reports',
+          label: 'Students',
+          icon: <GraduationCap size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'library',
+          label: 'Library',
+          icon: <BookOpen size={22} className="stroke-[1.75]" />,
+        },
+        {
+          id: 'exam-builder',
+          label: 'Exams',
+          icon: <FileSpreadsheet size={22} className="stroke-[1.75]" />,
+        },
+      ];
 
   return (
     <nav className="fixed bottom-0 left-0 right-0 z-30 bg-white dark:bg-surface-dark border-t border-border dark:border-border-dark flex md:hidden pb-safe shadow-lg">

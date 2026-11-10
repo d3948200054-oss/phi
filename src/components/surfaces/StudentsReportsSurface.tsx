@@ -10,7 +10,7 @@ import { Download, Flag, Search, ShieldCheck, GraduationCap, AlertTriangle, File
 import { SurfaceBeginnerGuide } from '../primitives/BeginnerGuide';
 
 export const StudentsReportsSurface: React.FC = () => {
-  const { students, attempts, flagStudent, cohorts, lectures, setActiveTab } = useTeachDeskStore();
+  const { students, attempts, flagStudent, cohorts, lectures, setActiveTab, approveStudentAdmission } = useTeachDeskStore();
 
   const [selectedStudentId, setSelectedStudentId] = useState<string>(students[0]?.id || '');
   const [searchQuery, setSearchQuery] = useState('');
@@ -164,14 +164,27 @@ export const StudentsReportsSurface: React.FC = () => {
               subtitle={`Roll: ${selectedStudent.rollNo} · Cohort: ${cohorts.find(c => c.id === selectedStudent.cohortId)?.name || selectedStudent.course}`}
               badge={<Badge variant={computeIntegrityBand(selectedStudent).variant}>{computeIntegrityBand(selectedStudent).band.toUpperCase()}</Badge>}
               actions={
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setIsFlagModalOpen(true)}
-                  icon={<Flag size={13} className="text-amber-600" />}
-                >
-                  Flag Incident Note
-                </Button>
+                <div className="flex items-center gap-2">
+                  {selectedStudent.admissionStatus === 'pending_review' && (
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      className="bg-emerald-500 hover:bg-emerald-600 text-slate-950 font-bold"
+                      onClick={() => approveStudentAdmission(selectedStudent.id)}
+                      icon={<ShieldCheck size={13} />}
+                    >
+                      Approve Admission
+                    </Button>
+                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setIsFlagModalOpen(true)}
+                    icon={<Flag size={13} className="text-amber-600" />}
+                  >
+                    Flag Incident Note
+                  </Button>
+                </div>
               }
             >
               {/* Summary Cards */}

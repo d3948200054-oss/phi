@@ -61,6 +61,7 @@ interface TeachDeskContextType {
   activeTab: TabId;
   setActiveTab: (tab: TabId) => void;
   signIn: (account: Account, password?: string, signingKey?: JsonWebKey) => Promise<void>;
+  signInAsStudent: (student: Student) => Promise<void>;
   signOut: () => void;
   registerTeacher: (newAccount: Account, password: string, signingKey?: JsonWebKey) => Promise<void>;
   updateAccountPayout: (payout: { upiId: string; accountName: string }, signingKey?: JsonWebKey) => Promise<void>;
@@ -84,6 +85,8 @@ interface TeachDeskContextType {
   importStudentsBatch: (students: Student[]) => Promise<number>;
   flagStudent: (studentId: string, reason: string) => Promise<void>;
   updateStudentFeeStatus: (studentId: string, status: Student['paymentStatus']) => Promise<void>;
+  approveStudentAdmission: (studentId: string, teacherId?: string, teacherName?: string) => Promise<void>;
+  rejectStudentAdmission: (studentId: string, reason: string) => Promise<void>;
 
   // Lab Seats
   seats: SeatRecord[];
@@ -494,6 +497,63 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     if (!canAccess(activeTab, userAccount.role)) {
       setActiveTabState('dashboard');
     }
+  };
+
+  const signInAsStudent = async (student: Student) => {
+    if (student.isTerminated) {
+      addToast({
+        type: 'danger',
+        title: 'Admission Suspended',
+        message: 'Your student account access has been suspended or terminated by Coaching Administrator (Om Shankar).'
+      });
+      throw new Error('Your student account has been suspended by the administrator.');
+    }
+
+    if (student.admissionStatus === 'rejected') {
+      addToast({
+        type: 'danger',
+        title: 'Admission Not Approved',
+        message: `Your registration was not approved by faculty: ${student.rejectionReason || 'Please contact coaching administration.'}`
+      });
+      throw new Error(`Your admission was not approved: ${student.rejectionReason || 'Please contact administration.'}`);
+    }
+
+    const studentAccount: Account = {
+      id: student.id,
+      role: 'student',
+      name: student.name,
+      email: student.email || `${student.rollNo.toLowerCase()}@phi.coaching`,
+      phone: student.phone,
+      subject: student.course,
+      courses: [student.course],
+      qualification: `${student.schoolName ? student.schoolName + ' · ' : ''}${student.studentClass || 'Class 11'}`,
+      yearsExperience: 0,
+      instituteId: institute.id || 'inst_phi_default',
+      createdAt: student.enrolledAt,
+      status: student.isTerminated ? 'terminated' : 'active'
+    };
+
+    setAccount(studentAccount);
+    setPreviewMode('admin');
+    await storeSession({
+      account: studentAccount,
+      unlockedAt: Date.now()
+    });
+
+    if (student.admissionStatus === 'pending_review') {
+      addToast({
+        type: 'warning',
+        title: 'Application Under Teacher Review',
+        message: `Welcome, ${student.name}! Your batch registration is queued for teacher review.`
+      });
+    } else {
+      addToast({
+        type: 'success',
+        title: 'Student Portal Active',
+        message: `Welcome ${student.name}! Roll No: ${student.rollNo}.`
+      });
+    }
+    setActiveTabState('dashboard');
   };
 
   const signOut = () => {
@@ -988,7 +1048,7 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     setUsedScreenshotHashes(updatedHashes);
     await saveToDeviceLedger('used_proof_hashes_ledger', updatedHashes);
 
-    // Auto-Enroll Student
+    // Auto-Enroll Student (Pending Teacher Review)
     const newRollNo = `PHI-2026-${Math.floor(100 + Math.random() * 900)}`;
     const newStudent: Student = {
       id: 'stu_' + Math.random().toString(36).substring(2, 9),
@@ -1003,16 +1063,19 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       cohortId: params.cohortId,
       enrolledAt: new Date().toISOString().split('T')[0],
       feePlanId: params.feePlanId,
-      paymentStatus: 'verified',
+      paymentStatus: 'submitted',
       flags: [],
-      academicTags: ['Online Verified Admission', 'Batch ' + (cohort?.name || 'Main')]
+      academicTags: ['Online Registration', 'Pending Teacher Review', 'Batch ' + (cohort?.name || 'Main')],
+      admissionStatus: 'pending_review',
+      paymentProofUrl: params.screenshotBase64,
+      utr: params.utr.trim().toUpperCase()
     };
 
     const updatedStudents = [newStudent, ...students];
     setStudents(updatedStudents);
     await saveToDeviceLedger('students_ledger', updatedStudents);
 
-    // Record Verified Payment
+    // Record Payment (Submitted for teacher review)
     const newPayment: Payment = {
       id: 'pay_' + Math.random().toString(36).substring(2, 9),
       payerStudentId: newStudent.id,
@@ -1029,23 +1092,22 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
       currency: 'INR',
       reference: params.utr.trim().toUpperCase(),
       humanReference: `PHI-${cohort?.code || 'REG'}-${newRollNo.split('-').pop()}`,
-      status: 'verified',
+      status: 'submitted',
       createdAt: new Date().toISOString(),
-      verifiedAt: new Date().toISOString(),
       paymentProofUrl: params.screenshotBase64,
-      verificationNote: verification.verification.remarks
+      verificationNote: `AI pre-check passed: ${verification.verification.remarks}. Pending teacher review.`
     };
 
     const updatedPayments = [newPayment, ...payments];
     setPayments(updatedPayments);
     await saveToDeviceLedger('payments_ledger', updatedPayments);
 
-    // Update Lead to Enrolled
+    // Update Lead to payment_submitted
     const updatedLeads = studentLeads.map(l =>
       l.id === params.leadId
         ? {
             ...l,
-            status: 'enrolled_verified' as const,
+            status: 'payment_submitted' as const,
             lastStep: 'screenshot_uploaded' as const,
             paymentProofUrl: params.screenshotBase64,
             screenshotHash: verification.hash,
@@ -1058,9 +1120,9 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     await saveToDeviceLedger('student_leads_ledger', updatedLeads);
 
     addToast({
-      type: 'success',
-      title: 'Payment Verified & Admitted!',
-      message: `Welcome ${newStudent.name}! Roll No: ${newStudent.rollNo}. Admission confirmed.`
+      type: 'info',
+      title: 'Registration Sent for Teacher Review',
+      message: `${newStudent.name} registered for ${cohort?.name || 'Batch'}. Queued for teacher review.`
     });
 
     return {
@@ -1188,6 +1250,93 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
     const updated = students.map(s => s.id === studentId ? { ...s, paymentStatus: status } : s);
     setStudents(updated);
     await saveToDeviceLedger('students_ledger', updated);
+  };
+
+  const approveStudentAdmission = async (studentId: string, teacherId?: string, teacherName?: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const reviewerId = teacherId || account?.id;
+    const reviewerName = teacherName || account?.name || 'Faculty';
+
+    const updatedStudents = students.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          admissionStatus: 'approved' as const,
+          paymentStatus: 'verified' as const,
+          reviewedByTeacherId: reviewerId,
+          reviewedByTeacherName: reviewerName,
+          reviewedAt: new Date().toISOString(),
+          academicTags: s.academicTags.filter(t => t !== 'Pending Teacher Review').concat(['Teacher Approved'])
+        };
+      }
+      return s;
+    });
+
+    setStudents(updatedStudents);
+    await saveToDeviceLedger('students_ledger', updatedStudents);
+
+    const updatedPayments = payments.map(p => {
+      if (p.payerStudentId === studentId) {
+        return {
+          ...p,
+          status: 'verified' as const,
+          verifiedAt: new Date().toISOString(),
+          verificationNote: `Approved by Teacher: ${reviewerName}`
+        };
+      }
+      return p;
+    });
+    setPayments(updatedPayments);
+    await saveToDeviceLedger('payments_ledger', updatedPayments);
+
+    const updatedLeads = studentLeads.map(l => {
+      if (l.phone === student.phone || (student.email && l.email === student.email)) {
+        return { ...l, status: 'enrolled_verified' as const };
+      }
+      return l;
+    });
+    setStudentLeads(updatedLeads);
+    await saveToDeviceLedger('student_leads_ledger', updatedLeads);
+
+    addToast({
+      type: 'success',
+      title: 'Student Admission Approved!',
+      message: `${student.name} (${student.rollNo}) approved by ${reviewerName} and enrolled in batch.`
+    });
+  };
+
+  const rejectStudentAdmission = async (studentId: string, reason: string) => {
+    const student = students.find(s => s.id === studentId);
+    if (!student) return;
+
+    const reviewerId = account?.id;
+    const reviewerName = account?.name || 'Faculty';
+
+    const updatedStudents = students.map(s => {
+      if (s.id === studentId) {
+        return {
+          ...s,
+          admissionStatus: 'rejected' as const,
+          paymentStatus: 'rejected' as const,
+          rejectionReason: reason,
+          reviewedByTeacherId: reviewerId,
+          reviewedByTeacherName: reviewerName,
+          reviewedAt: new Date().toISOString()
+        };
+      }
+      return s;
+    });
+
+    setStudents(updatedStudents);
+    await saveToDeviceLedger('students_ledger', updatedStudents);
+
+    addToast({
+      type: 'warning',
+      title: 'Admission Application Rejected',
+      message: `Registration for ${student.name} rejected: ${reason}`
+    });
   };
 
   const checkInSeat = (seatNumber: number, studentId: string) => {
@@ -1577,6 +1726,7 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         activeTab,
         setActiveTab,
         signIn,
+        signInAsStudent,
         signOut,
         registerTeacher,
         updateAccountPayout,
@@ -1594,6 +1744,8 @@ export const TeachDeskProvider: React.FC<{ children: React.ReactNode }> = ({ chi
         importStudentsBatch,
         flagStudent,
         updateStudentFeeStatus,
+        approveStudentAdmission,
+        rejectStudentAdmission,
         seats,
         checkInSeat,
         checkOutSeat,

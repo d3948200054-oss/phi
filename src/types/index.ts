@@ -82,10 +82,17 @@ export interface Student {
   cohortId: string;
   enrolledAt: string;
   feePlanId?: string;
-  paymentStatus: 'pending' | 'submitted' | 'verified' | 'overdue';
+  paymentStatus: 'pending' | 'submitted' | 'verified' | 'overdue' | 'rejected';
   flags: StudentFlag[];
   academicTags: string[];
   isTerminated?: boolean;
+  admissionStatus?: 'pending_review' | 'approved' | 'rejected';
+  rejectionReason?: string;
+  reviewedByTeacherId?: string;
+  reviewedByTeacherName?: string;
+  reviewedAt?: string;
+  paymentProofUrl?: string;
+  utr?: string;
 }
 
 export interface TeacherRequest {
